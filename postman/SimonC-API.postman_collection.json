@@ -1,0 +1,21 @@
+{
+  "info": { "name": "SimonC API - Cuarto avance FastAPI", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "variable": [{ "key": "baseUrl", "value": "http://127.0.0.1:8000/api" }, { "key": "token", "value": "" }, { "key": "resourceId", "value": "1" }],
+  "item": [
+    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
+    { "name": "Registrar cliente", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana\",\n  \"lastName\": \"Prueba\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"12345678\",\n  \"address\": \"Calle 10 #20-30\",\n  \"phone\": \"3001234567\",\n  \"email\": \"ana@example.com\",\n  \"password\": \"Ana12345\"\n}" }, "url": "{{baseUrl}}/usuarios/registro" } },
+    { "name": "Login JWT", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@simonsc.com\",\n  \"password\": \"Admin1234\"\n}" }, "url": "{{baseUrl}}/auth/login" } },
+    { "name": "Usuarios protegidos", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/users" } },
+    { "name": "Productos GET", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/products" } },
+    { "name": "Productos POST", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Producto demo\",\"description\":\"Prueba\",\"price\":100000}" }, "url": "{{baseUrl}}/products" } },
+    { "name": "Productos PUT", "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Producto actualizado\",\"description\":\"Edición\",\"price\":120000}" }, "url": "{{baseUrl}}/products/{{resourceId}}" } },
+    { "name": "Productos PATCH estado", "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"active\":false}" }, "url": "{{baseUrl}}/products/{{resourceId}}/status" } },
+    { "name": "Productos DELETE", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/products/{{resourceId}}" } },
+    { "name": "Servicios GET", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/services" } },
+    { "name": "Servicios POST", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Servicio demo\",\"description\":\"Prueba\",\"price\":200000}" }, "url": "{{baseUrl}}/services" } },
+    { "name": "Servicios PUT", "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Servicio actualizado\",\"description\":\"Edición\",\"price\":220000}" }, "url": "{{baseUrl}}/services/{{resourceId}}" } },
+    { "name": "Servicios PATCH estado", "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"active\":false}" }, "url": "{{baseUrl}}/services/{{resourceId}}/status" } },
+    { "name": "Servicios DELETE", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/services/{{resourceId}}" } },
+    { "name": "Recuperar contraseña", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"ana@example.com\"}" }, "url": "{{baseUrl}}/auth/recover" } }
+  ]
+}

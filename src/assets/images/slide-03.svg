@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title3 desc3">
+  <title id="title3">Desarrollo colaborativo</title>
+  <desc id="desc3">Imagen 3 del carrusel con gradiente morado.</desc>
+  <defs>
+    <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g3)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Desarrollo colaborativo</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#dbeafe" font-size="28" font-family="Inter, sans-serif">Trabajo en equipo para aplicaciones escalables</text>
+</svg>

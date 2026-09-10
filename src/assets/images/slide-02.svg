@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title2 desc2">
+  <title id="title2">Diseño atractivo</title>
+  <desc id="desc2">Imagen 2 del carrusel con tonos cálidos.</desc>
+  <defs>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#f43f5e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g2)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Diseño atractivo</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#ffe7d9" font-size="28" font-family="Inter, sans-serif">Proyectos con estilo moderno y UX amigable</text>
+</svg>

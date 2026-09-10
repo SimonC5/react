@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title6 desc6">
+  <title id="title6">Contenido claro</title>
+  <desc id="desc6">Imagen 6 del carrusel con tonos naranjas suaves.</desc>
+  <defs>
+    <linearGradient id="g6" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g6)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Contenido claro</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#fff7ed" font-size="28" font-family="Inter, sans-serif">Mensajes visuales con foco en objetivos comerciales</text>
+</svg>

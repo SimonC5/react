@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title1 desc1">
+  <title id="title1">Transformación digital</title>
+  <desc id="desc1">Imagen 1 del carrusel con estilo moderno.</desc>
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g1)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Transformación digital</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#dbeafe" font-size="28" font-family="Inter, sans-serif">Integra soluciones visuales y funcionales</text>
+</svg>

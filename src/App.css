@@ -1,0 +1,291 @@
+/* App styles */
+:root {
+  --bg: #f6f9ff;
+  --surface: #ffffff;
+  --text: #101828;
+  --muted: #667085;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --border: #d8d8e4;
+  --shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+  color: var(--text);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  padding: 24px;
+}
+
+.app-header,
+.app-footer {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 18px 24px;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+
+.brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.nav-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nav-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.nav-links a.active,
+.nav-links a:hover {
+  color: var(--primary);
+}
+
+.app-footer {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  text-align: center;
+  color: var(--muted);
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-intro {
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--primary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.page h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 2vw, 3.4rem);
+  line-height: 1.05;
+}
+
+.page p {
+  margin: 16px 0 0;
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.carousel {
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.carousel-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.carousel-label {
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.carousel-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.carousel-controls button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.carousel-card {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.carousel-card img {
+  width: 100%;
+  min-height: 320px;
+  object-fit: cover;
+  border-radius: 22px;
+}
+
+.carousel-copy h2 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.carousel-copy p {
+  margin: 16px 0 0;
+  font-size: 1rem;
+  color: var(--muted);
+  max-width: 500px;
+}
+
+.carousel-indicators {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.carousel-indicators button {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+}
+
+.carousel-indicators button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.feature-grid,
+.contact-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.feature-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.feature-grid article,
+.contact-card,
+.contact-form {
+  background: var(--surface);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.feature-grid article h2,
+.contact-card h2 {
+  margin-top: 0;
+}
+
+.contact-grid {
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.contact-form {
+  display: grid;
+  gap: 16px;
+}
+
+.contact-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.contact-form input,
+.contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  resize: vertical;
+}
+
+.contact-form button {
+  width: fit-content;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 16px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+}
+
+@media (max-width: 940px) {
+  .carousel-card,
+  .contact-grid,
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header,
+  .app-footer {
+    padding: 18px 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 18px 16px 28px;
+  }
+
+  .nav-links {
+    justify-content: center;
+  }
+
+  .carousel-card img {
+    min-height: 260px;
+  }
+}

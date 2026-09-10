@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title7 desc7">
+  <title id="title7">Animaciones suaves</title>
+  <desc id="desc7">Imagen 7 del carrusel con fondo morado y azul.</desc>
+  <defs>
+    <linearGradient id="g7" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g7)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Animaciones suaves</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#dbeafe" font-size="28" font-family="Inter, sans-serif">Transiciones que mejoran la percepción de calidad</text>
+</svg>

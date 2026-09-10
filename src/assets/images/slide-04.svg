@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title4 desc4">
+  <title id="title4">Optimización móvil</title>
+  <desc id="desc4">Imagen 4 con colores verdes y diseño minimalista.</desc>
+  <defs>
+    <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g4)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Optimización móvil</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#d1fae5" font-size="28" font-family="Inter, sans-serif">Experiencias responsive desde el inicio</text>
+</svg>

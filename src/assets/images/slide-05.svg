@@ -1,0 +1,13 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title5 desc5">
+  <title id="title5">Interfaces accesibles</title>
+  <desc id="desc5">Imagen 5 con tonos azules claros.</desc>
+  <defs>
+    <linearGradient id="g5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g5)" rx="40"/>
+  <text x="50%" y="45%" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Inter, sans-serif" font-weight="700">Interfaces accesibles</text>
+  <text x="50%" y="58%" text-anchor="middle" fill="#dbeafe" font-size="28" font-family="Inter, sans-serif">Diseños inclusivos pensados para todos</text>
+</svg>
