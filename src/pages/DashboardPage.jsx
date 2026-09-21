@@ -94,6 +94,17 @@ function IconSupport() {
   );
 }
 
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+      <path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20" />
+      <circle cx="9" cy="7" r="3.2" />
+      <path d="M22 20v-1.5a4 4 0 0 0-3-3.8" />
+      <path d="M16 3.7a4 4 0 0 1 0 6.6" />
+    </svg>
+  );
+}
+
 function IconLogout() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
@@ -117,7 +128,7 @@ function SidebarButton({ icon, label, onClick }) {
   );
 }
 
-function ResourceManager({ resource, title }) {
+function ResourceManager({ resource, title, puedeEditar = true }) {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(blankResource);
   const [editingId, setEditingId] = useState(null);
@@ -195,13 +206,15 @@ function ResourceManager({ resource, title }) {
     <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-white">{title}</h2>
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-        >
-          Agregar {title.slice(0, -1).toLowerCase()}
-        </button>
+        {puedeEditar && (
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+          >
+            Agregar {title.slice(0, -1).toLowerCase()}
+          </button>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-300">{error}</p>}
@@ -226,22 +239,24 @@ function ResourceManager({ resource, title }) {
               </span>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" className="text-sm text-cyan-300" onClick={() => openEditModal(item)}>
-                Editar
-              </button>
-              <button type="button" className="text-sm text-amber-300" onClick={() => toggleStatus(item.id, item.active)}>
-                Estado
-              </button>
-              <button type="button" className="text-sm text-red-300" onClick={() => deleteItem(item.id)}>
-                Eliminar
-              </button>
-            </div>
+            {puedeEditar && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" className="text-sm text-cyan-300" onClick={() => openEditModal(item)}>
+                  Editar
+                </button>
+                <button type="button" className="text-sm text-amber-300" onClick={() => toggleStatus(item.id, item.active)}>
+                  Estado
+                </button>
+                <button type="button" className="text-sm text-red-300" onClick={() => deleteItem(item.id)}>
+                  Eliminar
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {isModalOpen && (
+      {puedeEditar && isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
           <div className="w-full max-w-xl rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between gap-3">
@@ -322,7 +337,10 @@ function DashboardPage({ role }) {
     role: 'Cliente',
   });
 
-  const gestionaComercial = role === 'Administrador' || role === 'Empleado';
+  const esAdministrador = role === 'Administrador';
+  const esCliente = role === 'Cliente';
+  // Administrador y empleado operan; el cliente solo consulta lo suyo.
+  const gestionaComercial = esAdministrador || role === 'Empleado';
 
   const sidebarItems = useMemo(() => {
     const irA = (id) => () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -330,15 +348,16 @@ function DashboardPage({ role }) {
     return [
       { label: 'Mi página', icon: <IconHome />, action: () => navigate('/') },
       { label: 'Dashboard', icon: <IconChart />, action: irA('dashboard-panel') },
-      { label: 'Ventas', icon: <IconSale />, action: irA('ventas-panel') },
-      { label: 'Facturación', icon: <IconInvoice />, action: irA('facturas-panel') },
+      { label: esCliente ? 'Mis compras' : 'Ventas', icon: <IconSale />, action: irA('ventas-panel') },
+      { label: esCliente ? 'Mis facturas' : 'Facturación', icon: <IconInvoice />, action: irA('facturas-panel') },
       ...(gestionaComercial ? [{ label: 'Reportes', icon: <IconReport />, action: irA('reportes-panel') }] : []),
       { label: 'PQR', icon: <IconSupport />, action: irA('pqr-panel') },
-      { label: 'Productos', icon: <IconPackage />, action: irA('productos-panel') },
+      ...(esAdministrador ? [{ label: 'Usuarios', icon: <IconUsers />, action: irA('usuarios-panel') }] : []),
+      { label: esCliente ? 'Catálogo' : 'Productos', icon: <IconPackage />, action: irA('productos-panel') },
       { label: 'Servicios', icon: <IconService />, action: irA('servicios-panel') },
       { label: 'Cerrar sesión', icon: <IconLogout />, action: () => { logout(); navigate('/login'); } },
     ];
-  }, [gestionaComercial, logout, navigate]);
+  }, [esAdministrador, esCliente, gestionaComercial, logout, navigate]);
 
   const loadUsers = () => apiRequest('/users').then((data) => setUsers(data.users || []));
 
@@ -405,7 +424,7 @@ function DashboardPage({ role }) {
   return (
     <section className="space-y-6 py-8">
       <div className="mb-6 flex flex-col gap-6 lg:flex-row">
-        <aside className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-5 lg:max-w-[260px]">
+        <aside className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:w-[260px] lg:shrink-0 lg:self-start lg:overflow-y-auto">
           <div className="mb-6 flex items-center gap-3">
             <img src={logo} alt="Logo SimonC" className="h-12 w-12 rounded-full ring-2 ring-cyan-400/50" />
             <div>
@@ -430,8 +449,8 @@ function DashboardPage({ role }) {
 
           {message && <p className="rounded-lg bg-cyan-500/10 p-3 text-cyan-200">{message}</p>}
 
-          {role === 'Administrador' && (
-            <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
+          {esAdministrador && (
+            <div id="usuarios-panel" className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
               <h2 className="text-xl font-bold text-white">Administrar usuarios</h2>
 
               <form onSubmit={saveUser} className="grid gap-3 md:grid-cols-4">
@@ -494,20 +513,28 @@ function DashboardPage({ role }) {
 
           <AnalyticsModule rol={role} />
 
-          <SalesModule puedeRegistrar={gestionaComercial} />
+          <SalesModule puedeRegistrar={gestionaComercial} titulo={esCliente ? 'Mis compras' : 'Ventas'} />
 
-          <InvoicesModule />
+          <InvoicesModule titulo={esCliente ? 'Mis facturas' : 'Facturación'} />
 
           {gestionaComercial && <ReportsModule />}
 
           <PqrModule puedeGestionar={gestionaComercial} />
 
           <div id="productos-panel">
-            <ResourceManager resource="products" title="Productos" />
+            <ResourceManager
+              resource="products"
+              title={esCliente ? 'Catálogo de productos' : 'Productos'}
+              puedeEditar={esAdministrador}
+            />
           </div>
 
           <div id="servicios-panel">
-            <ResourceManager resource="services" title="Servicios" />
+            <ResourceManager
+              resource="services"
+              title={esCliente ? 'Catálogo de servicios' : 'Servicios'}
+              puedeEditar={gestionaComercial}
+            />
           </div>
         </div>
       </div>

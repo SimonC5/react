@@ -17,7 +17,7 @@ const initialForm = {
   confirmPassword: '',
 };
 
-function RegisterModal({ isOpen, onClose }) {
+function RegisterModal({ isOpen, onClose, onRegistered }) {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
@@ -105,9 +105,12 @@ function RegisterModal({ isOpen, onClose }) {
       setIsSubmitting(true);
       try {
         await authApi.register(form);
-        setSuccessMessage('Registro completado con éxito. Ya puedes iniciar sesión.');
+        const email = form.email.trim();
         setForm(initialForm);
         setErrors({});
+        // Al crear la cuenta se pasa directo al inicio de sesión.
+        if (onRegistered) onRegistered(email);
+        else setSuccessMessage('Registro completado con éxito. Ya puedes iniciar sesión.');
       } catch (error) { setServerError(error.message); }
       finally { setIsSubmitting(false); }
     }

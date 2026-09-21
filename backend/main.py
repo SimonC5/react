@@ -198,22 +198,23 @@ def init_db():
             ('Empleado', 'SimonC', 'CC', '1000000002', 'Oficina principal', '3000000001', 'empleado@simonsc.com', employee_password, 1, role_map['Empleado'])
         )
 
-        conn.execute(
-            "INSERT OR IGNORE INTO productos (name, description, price, active) VALUES (?, ?, ?, ?)",
-            ('Branding Premium', 'Identidad visual estratégica para marcas.', 850000, 1),
+        # "name" no tiene restricción UNIQUE, así que INSERT OR IGNORE no evitaba
+        # nada y el catálogo se duplicaba en cada arranque del backend.
+        seed_catalog = (
+            ('productos', 'Branding Premium', 'Identidad visual estratégica para marcas.', 850000),
+            ('productos', 'E-commerce Avanzado', 'Tienda online orientada a conversión.', 1500000),
+            ('servicios', 'Desarrollo web', 'Aplicaciones modernas y rápidas.', 1200000),
+            ('servicios', 'Marketing UX', 'Optimización de experiencia de usuario.', 650000),
         )
-        conn.execute(
-            "INSERT OR IGNORE INTO productos (name, description, price, active) VALUES (?, ?, ?, ?)",
-            ('E-commerce Avanzado', 'Tienda online orientada a conversión.', 1500000, 1),
-        )
-        conn.execute(
-            "INSERT OR IGNORE INTO servicios (name, description, price, active) VALUES (?, ?, ?, ?)",
-            ('Desarrollo web', 'Aplicaciones modernas y rápidas.', 1200000, 1),
-        )
-        conn.execute(
-            "INSERT OR IGNORE INTO servicios (name, description, price, active) VALUES (?, ?, ?, ?)",
-            ('Marketing UX', 'Optimización de experiencia de usuario.', 650000, 1),
-        )
+        for table, name, description, price in seed_catalog:
+            conn.execute(
+                f'''
+                INSERT INTO {table} (name, description, price, active)
+                SELECT ?, ?, ?, 1
+                WHERE NOT EXISTS (SELECT 1 FROM {table} WHERE name = ?)
+                ''',
+                (name, description, price, name),
+            )
 
         conn.commit()
 

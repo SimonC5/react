@@ -6,25 +6,55 @@ import { AuthProvider } from '../context/AuthContext';
 
 const renderLogin = () => render(<MemoryRouter><AuthProvider><Login /></AuthProvider></MemoryRouter>);
 
+const pasarAlPasoDeClave = (email = 'ana@example.com') => {
+  fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: email } });
+  fireEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+};
+
 afterEach(() => {
   cleanup();
 });
 
-describe('Login form', () => {
-  it('muestra errores cuando los datos ingresados son inválidos', () => {
+describe('Inicio de sesión en dos pasos', () => {
+  it('el primer paso solo pide el correo y valida su formato', () => {
     renderLogin();
 
-    fireEvent.change(screen.getByLabelText(/correo electrónico/i), {
-      target: { value: 'correo-invalido' },
-    });
-    fireEvent.change(screen.getByLabelText(/contraseña/i), {
-      target: { value: '123' },
-    });
+    expect(screen.queryByLabelText(/contraseña/i)).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+    fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: 'correo-invalido' } });
+    fireEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     expect(screen.getByText(/correo electrónico inválido/i)).not.toBeNull();
+    expect(screen.queryByLabelText(/contraseña/i)).toBeNull();
+  });
+
+  it('con un correo válido pasa al segundo paso y pide la contraseña', () => {
+    renderLogin();
+    pasarAlPasoDeClave();
+
+    expect(screen.getByText('ana@example.com')).not.toBeNull();
+    expect(screen.getByLabelText(/contraseña/i)).not.toBeNull();
+    expect(screen.queryByLabelText(/correo electrónico/i)).toBeNull();
+  });
+
+  it('valida la longitud de la contraseña en el segundo paso', () => {
+    renderLogin();
+    pasarAlPasoDeClave();
+
+    fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: '123' } });
+    fireEvent.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+
     expect(screen.getByText(/debe tener al menos 8 caracteres/i)).not.toBeNull();
+  });
+
+  it('el botón Cambiar regresa al paso del correo', () => {
+    renderLogin();
+    pasarAlPasoDeClave();
+
+    fireEvent.click(screen.getByRole('button', { name: /cambiar/i }));
+
+    expect(screen.getByLabelText(/correo electrónico/i)).not.toBeNull();
+    expect(screen.queryByLabelText(/contraseña/i)).toBeNull();
   });
 });
 
@@ -43,6 +73,7 @@ describe('Register modal', () => {
 describe('Recuperación de cuenta', () => {
   it('muestra el logo y el aviso de recuperación por correo', () => {
     renderLogin();
+    pasarAlPasoDeClave();
 
     fireEvent.click(screen.getByRole('button', { name: /¿olvidaste tu contraseña\?/i }));
 

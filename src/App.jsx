@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage'
 import WhatsAppButton from './components/WhatsAppButton'
 import Chatbot from './components/Chatbot'
 import { AuthProvider } from './context/AuthContext'
+import { esRutaDePanel } from './utils/rutas'
 
 function ScrollToHash() {
   const location = useLocation();
@@ -35,30 +36,40 @@ function ScrollToHash() {
   return null;
 }
 
+function Layout() {
+  const { pathname } = useLocation();
+  // El panel es un área de trabajo: sin footer ni botón flotante de WhatsApp.
+  const enPanel = esRutaDePanel(pathname);
+
+  return (
+    <div className="min-h-screen bg-transparent text-slate-100">
+      <Header />
+      <main className={`mx-auto w-full px-4 py-8 sm:px-6 lg:px-8 ${enPanel ? 'max-w-[110rem]' : 'max-w-7xl'}`}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/productos" element={<ProductsPage />} />
+          <Route path="/servicios" element={<ServicesPage />} />
+          <Route path="/quienes-somos" element={<AboutPage />} />
+          <Route path="/contacto" element={<ContactPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/panel/admin" element={<DashboardPage role="Administrador" />} />
+          <Route path="/panel/empleado" element={<DashboardPage role="Empleado" />} />
+          <Route path="/panel/cliente" element={<DashboardPage role="Cliente" />} />
+        </Routes>
+      </main>
+      {!enPanel && <Footer />}
+      {!enPanel && <WhatsAppButton />}
+      <Chatbot />
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-      <ScrollToHash />
-      <div className="min-h-screen bg-transparent text-slate-100">
-        <Header />
-        <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/productos" element={<ProductsPage />} />
-            <Route path="/servicios" element={<ServicesPage />} />
-            <Route path="/quienes-somos" element={<AboutPage />} />
-            <Route path="/contacto" element={<ContactPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/panel/admin" element={<DashboardPage role="Administrador" />} />
-            <Route path="/panel/empleado" element={<DashboardPage role="Empleado" />} />
-            <Route path="/panel/cliente" element={<DashboardPage role="Cliente" />} />
-          </Routes>
-        </main>
-        <Footer />
-        <WhatsAppButton />
-        <Chatbot />
-      </div>
+        <ScrollToHash />
+        <Layout />
       </BrowserRouter>
     </AuthProvider>
   )

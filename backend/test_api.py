@@ -159,6 +159,23 @@ def test_el_chatbot_no_expone_la_api_key(client, admin):
     assert 'sk-' not in cuerpo
 
 
+def test_el_cliente_no_ve_las_pqr_de_otros_en_su_dashboard(client, admin):
+    client.post('/api/pqr', headers=admin, json={
+        'tipo': 'Queja', 'asunto': 'Solicitud del administrador', 'descripcion': 'No debe verla el cliente.',
+    })
+    client.post('/api/auth/register', json={
+        'name': 'Otro', 'lastName': 'Cliente', 'documentType': 'CC', 'documentNumber': '8888888888',
+        'address': 'Calle 2', 'phone': '3009998877', 'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
+    })
+    token = client.post('/api/auth/login', json={
+        'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
+    }).json()['token']
+    cliente = {'Authorization': f'Bearer {token}'}
+
+    resumen = client.get('/api/dashboard/resumen', headers=cliente).json()
+    assert sum(fila['valor'] for fila in resumen['pqrPorEstado']) == 0
+
+
 def test_permisos_por_rol(client, admin):
     client.post('/api/auth/register', json={
         'name': 'Cliente', 'lastName': 'Demo', 'documentType': 'CC', 'documentNumber': '9999999999',

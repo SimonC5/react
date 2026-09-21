@@ -71,8 +71,8 @@ def opciones_de_filtro(_usuario: dict[str, Any] = Depends(get_current_user)):
     """Valores disponibles para armar los selectores de los dashboards."""
     conn = get_db_connection()
     try:
-        productos = [row['name'] for row in conn.execute('SELECT name FROM productos ORDER BY name').fetchall()]
-        servicios = [row['name'] for row in conn.execute('SELECT name FROM servicios ORDER BY name').fetchall()]
+        productos = [row['name'] for row in conn.execute('SELECT DISTINCT name FROM productos ORDER BY name').fetchall()]
+        servicios = [row['name'] for row in conn.execute('SELECT DISTINCT name FROM servicios ORDER BY name').fetchall()]
         clientes = [
             row['cliente_nombre']
             for row in conn.execute('SELECT DISTINCT cliente_nombre FROM ventas ORDER BY cliente_nombre').fetchall()
@@ -154,8 +154,16 @@ def resumen(usuario: dict[str, Any] = Depends(get_current_user)):
                 'valor': escalar('SELECT COUNT(*) FROM usuarios'), 'formato': 'numero',
             })
 
+        # El cliente solo cuenta sus propias solicitudes, no las de los demás.
+        filtro_pqr = ' AND cliente_id = ?' if rol == 'Cliente' else ''
         pqr_por_estado = [
-            {'etiqueta': estado, 'valor': escalar('SELECT COUNT(*) FROM pqr WHERE estado = ?', (estado,))}
+            {
+                'etiqueta': estado,
+                'valor': escalar(
+                    f'SELECT COUNT(*) FROM pqr WHERE estado = ?{filtro_pqr}',
+                    (estado, usuario.get('id')) if rol == 'Cliente' else (estado,),
+                ),
+            }
             for estado in ESTADOS_PQR
         ]
 

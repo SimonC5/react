@@ -8,7 +8,7 @@ const filtrosVacios = { numero: '', cliente: '', estado: '', fechaInicio: '', fe
  * Consulta y descarga de facturas de venta.
  * Cubre los requerimientos 8 y 9 del quinto avance.
  */
-function InvoicesModule() {
+function InvoicesModule({ titulo = 'Facturación' }) {
   const [filtros, setFiltros] = useState(filtrosVacios);
   const [facturas, setFacturas] = useState([]);
   const [seleccionada, setSeleccionada] = useState(null);
@@ -52,7 +52,7 @@ function InvoicesModule() {
 
   return (
     <section id="facturas-panel" className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
-      <h2 className="text-xl font-bold text-white">Facturación</h2>
+      <h2 className="text-xl font-bold text-white">{titulo}</h2>
 
       {mensaje && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-200">{mensaje}</p>}
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}

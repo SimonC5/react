@@ -10,7 +10,7 @@ const filtrosVacios = { fechaInicio: '', fechaFin: '', cliente: '', estado: '', 
  * Registro de ventas desde el sitio e historial consultable con filtros.
  * Cubre los requerimientos 1, 2 y 3 del quinto avance.
  */
-function SalesModule({ puedeRegistrar }) {
+function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
   const [productos, setProductos] = useState([]);
   const [servicios, setServicios] = useState([]);
   const [cabecera, setCabecera] = useState({ cliente: '', clienteDocumento: '', observaciones: '' });
@@ -126,7 +126,7 @@ function SalesModule({ puedeRegistrar }) {
 
   return (
     <section id="ventas-panel" className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
-      <h2 className="text-xl font-bold text-white">Ventas</h2>
+      <h2 className="text-xl font-bold text-white">{titulo}</h2>
 
       {mensaje && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-200">{mensaje}</p>}
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
