@@ -111,18 +111,29 @@ def _traducir(consulta: str) -> str:
 
 
 class _CursorMySQL:
-    """Envoltura con la misma interfaz que usa el resto del backend."""
+    """Resultado ya leído, con la interfaz que usa el resto del backend.
 
-    def __init__(self, cursor):
-        self._cursor = cursor
-        self.lastrowid = cursor.lastrowid
+    Las filas se traen enteras y el cursor se cierra en el acto. Con la
+    extensión en C del conector, dejar filas sin leer y lanzar otra consulta
+    revienta con "Unread result found", así que no se deja nada pendiente.
+    """
+
+    def __init__(self, filas: list[dict[str, Any]], lastrowid: Optional[int]):
+        self._filas = [Fila((k, _normalizar(v)) for k, v in fila.items()) for fila in filas]
+        self.lastrowid = lastrowid
+        self._siguiente = 0
 
     def fetchone(self) -> Optional[Fila]:
-        fila = self._cursor.fetchone()
-        return None if fila is None else Fila((k, _normalizar(v)) for k, v in fila.items())
+        if self._siguiente >= len(self._filas):
+            return None
+        fila = self._filas[self._siguiente]
+        self._siguiente += 1
+        return fila
 
     def fetchall(self) -> list[Fila]:
-        return [Fila((k, _normalizar(v)) for k, v in fila.items()) for fila in self._cursor.fetchall()]
+        pendientes = self._filas[self._siguiente:]
+        self._siguiente = len(self._filas)
+        return pendientes
 
     def __iter__(self):
         return iter(self.fetchall())
@@ -135,19 +146,25 @@ class ConexionMySQL:
         self._conexion = conexion
 
     def execute(self, consulta: str, parametros: Any = ()) -> _CursorMySQL:
-        cursor = self._conexion.cursor(dictionary=True)
-        if parametros:
-            cursor.execute(_traducir(consulta), tuple(parametros))
-        else:
-            # Sin parámetros no se interpola, así que un '%' del SQL no estorba.
-            cursor.execute(_traducir(consulta))
-        return _CursorMySQL(cursor)
+        cursor = self._conexion.cursor(dictionary=True, buffered=True)
+        try:
+            if parametros:
+                cursor.execute(_traducir(consulta), tuple(parametros))
+            else:
+                # Sin parámetros no se interpola, así que un '%' del SQL no estorba.
+                cursor.execute(_traducir(consulta))
+            filas = cursor.fetchall() if getattr(cursor, 'with_rows', False) else []
+            return _CursorMySQL(filas, cursor.lastrowid)
+        finally:
+            cursor.close()
 
     def executescript(self, guion: str) -> None:
         for sentencia in filtrar_sentencias(guion):
-            cursor = self._conexion.cursor()
-            cursor.execute(sentencia)
-            cursor.close()
+            cursor = self._conexion.cursor(buffered=True)
+            try:
+                cursor.execute(sentencia)
+            finally:
+                cursor.close()
 
     def commit(self) -> None:
         self._conexion.commit()

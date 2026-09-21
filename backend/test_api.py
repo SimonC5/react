@@ -256,3 +256,16 @@ def test_los_valores_de_mysql_quedan_como_los_de_sqlite():
 
     assert core._normalizar(_Dec('1500.50')) == 1500.5
     assert core._normalizar(_dt(2026, 9, 21, 15, 4, 5, 123456)) == '2026-09-21 15:04:05'
+
+
+@pytest.mark.skipif(not core.usa_mysql(), reason='solo aplica cuando se corre contra MySQL')
+def test_mysql_no_deja_resultados_sin_leer():
+    """Con la extensión en C, una fila sin leer rompe la consulta siguiente."""
+    conn = core.get_db_connection()
+    try:
+        cursor = conn.execute('SELECT id, name FROM productos')
+        cursor.fetchone()  # a propósito se lee solo la primera de varias filas
+        assert conn._conexion.unread_result is False
+        assert conn.execute('SELECT COUNT(*) AS total FROM productos').fetchone()['total'] >= 0
+    finally:
+        conn.close()
