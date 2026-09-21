@@ -20,6 +20,17 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'data'
 DB_PATH = DATA_DIR / 'simonsc.db'
 
+# Carga backend/.env antes de leer cualquier variable de entorno, para que la
+# clave de IA y las credenciales de correo funcionen sin definirlas a mano en
+# el sistema. Las variables reales del entorno tienen prioridad sobre el
+# archivo, que es lo que necesita el despliegue en Railway.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(BASE_DIR / '.env', override=False)
+except ImportError:  # python-dotenv es opcional en entornos mínimos
+    pass
+
 SECRET_KEY = os.getenv('JWT_SECRET', 'simonsc-development-secret-change-me')
 ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('JWT_EXPIRES_IN', '120').replace('h', '')) * 60 if os.getenv('JWT_EXPIRES_IN', '').endswith('h') else 120

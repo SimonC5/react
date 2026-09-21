@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage'
 import AboutPage from './pages/AboutPage'
 import ContactPage from './pages/ContactPage'
 import Login from './components/Login'
+import ResetPassword from './components/ResetPassword'
 import ProductsPage from './pages/ProductsPage'
 import ServicesPage from './pages/ServicesPage'
 import DashboardPage from './pages/DashboardPage'
@@ -52,6 +53,7 @@ function Layout() {
           <Route path="/quienes-somos" element={<AboutPage />} />
           <Route path="/contacto" element={<ContactPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/panel/admin" element={<DashboardPage role="Administrador" />} />
           <Route path="/panel/empleado" element={<DashboardPage role="Empleado" />} />
           <Route path="/panel/cliente" element={<DashboardPage role="Cliente" />} />

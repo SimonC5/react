@@ -191,3 +191,43 @@ def test_permisos_por_rol(client, admin):
     assert client.get('/api/ventas', headers=cliente).json()['resumen']['cantidad'] == 0
     assert client.get('/api/dashboard/resumen', headers=cliente).status_code == 200
     assert client.get('/api/ventas').status_code == 401
+
+
+def test_recuperacion_de_clave_genera_enlace_y_permite_cambiarla(client, capsys):
+    """Sin SMTP el enlace se imprime; con ese token se cambia la contraseña."""
+    correo = 'recupera@simonsc.com'
+    alta = client.post('/api/auth/register', json={
+        'name': 'Reco', 'lastName': 'Pera', 'documentType': 'CC', 'documentNumber': '4545454545',
+        'address': 'Calle siempre viva 123', 'phone': '3001112233',
+        'email': correo, 'password': 'Clave1234', 'confirmPassword': 'Clave1234',
+    })
+    assert alta.status_code == 200, alta.text
+
+    solicitud = client.post('/api/auth/recover', json={'email': correo})
+    assert solicitud.status_code == 200
+    # El token jamás viaja en la respuesta: solo por correo o por consola.
+    assert 'token' not in solicitud.text
+
+    impreso = capsys.readouterr().out
+    assert 'reset-password?token=' in impreso
+    token = impreso.split('reset-password?token=')[1].split()[0]
+
+    corta = client.post('/api/auth/reset-password', json={'token': token, 'password': 'abc'})
+    assert corta.status_code == 400
+
+    cambio = client.post('/api/auth/reset-password', json={'token': token, 'password': 'NuevaClave9'})
+    assert cambio.status_code == 200, cambio.text
+
+    # El mismo enlace no sirve dos veces.
+    repetido = client.post('/api/auth/reset-password', json={'token': token, 'password': 'OtraClave9'})
+    assert repetido.status_code == 400
+
+    assert client.post('/api/auth/login', json={'email': correo, 'password': 'Clave1234'}).status_code == 401
+    assert client.post('/api/auth/login', json={'email': correo, 'password': 'NuevaClave9'}).status_code == 200
+
+
+def test_recuperacion_de_un_correo_inexistente_responde_igual(client):
+    """No se puede averiguar qué correos están registrados."""
+    respuesta = client.post('/api/auth/recover', json={'email': 'nadie@simonsc.com'})
+    assert respuesta.status_code == 200
+    assert respuesta.json()['message'] == 'Si el correo existe, recibirás instrucciones para recuperar tu cuenta.'

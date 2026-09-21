@@ -21,7 +21,8 @@ try:
         verify_password,
     )
     from .comercial import init_comercial_db
-    from . import chatbot, dashboard, facturas, pqr, reportes, ventas
+    from .recuperacion import init_recuperacion_db
+    from . import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
 except ImportError:
     from models import Base
     from schemas import UserCreateSchema
@@ -37,7 +38,8 @@ except ImportError:
         verify_password,
     )
     from comercial import init_comercial_db
-    import chatbot, dashboard, facturas, pqr, reportes, ventas
+    from recuperacion import init_recuperacion_db
+    import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
 
 DEFAULT_ORIGINS = [
     'http://localhost:5173', 'http://127.0.0.1:5173',
@@ -62,7 +64,7 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-for modulo in (ventas, facturas, reportes, dashboard, pqr, chatbot):
+for modulo in (ventas, facturas, reportes, dashboard, pqr, chatbot, recuperacion):
     app.include_router(modulo.router)
 
 class UserCreate(BaseModel):
@@ -94,10 +96,6 @@ class ResourceCreate(BaseModel):
 
 class ResourceStatus(BaseModel):
     active: bool
-
-class AuthRecovery(BaseModel):
-    email: EmailStr
-
 
 def init_db():
     DATA_DIR.mkdir(exist_ok=True, parents=True)
@@ -219,6 +217,7 @@ def init_db():
         conn.commit()
 
         init_comercial_db(conn)
+        init_recuperacion_db(conn)
     finally:
         conn.close()
 
@@ -312,13 +311,6 @@ def login(payload: UserLogin):
 
     token = create_access_token({'id': user['id'], 'name': user['name'], 'email': user['email'], 'role': user['role']})
     return {'token': token, 'user': public_user_row(user)}
-
-
-@app.post('/api/auth/recover')
-def recover(payload: AuthRecovery):
-    if not payload.email:
-        raise HTTPException(status_code=400, detail='Correo electrónico inválido.')
-    return {'message': 'Si el correo existe, recibirás instrucciones para recuperar tu cuenta.'}
 
 
 @app.get('/api/auth/me', dependencies=[Depends(get_current_user)])

@@ -35,6 +35,10 @@ Backend (`backend/.env`, a partir de `backend/.env.example`):
 | `FRONTEND_URL`, `CORS_ORIGINS` | Dominios autorizados por CORS en producción. |
 | `IA_API_KEY` | Clave del proveedor de IA que usa el chatbot. |
 | `IA_API_URL`, `IA_MODEL`, `IA_TIMEOUT` | Endpoint, modelo y tiempo de espera del proveedor. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS` | Envío del correo de recuperación de contraseña. |
+
+`backend/core.py` carga `backend/.env` al arrancar, así que basta con escribir las variables
+en ese archivo. Las variables reales del entorno tienen prioridad, que es lo que usa el despliegue.
 
 La API Key **nunca** se publica en GitHub ni se escribe en el código: se lee de `backend/.env`,
 que está en `.gitignore`, y en producción se configura como variable de entorno del servicio.
@@ -50,6 +54,7 @@ Si no hay clave configurada, el chatbot sigue respondiendo con la información r
 | Dashboards | Cards de indicadores, gráfico de barras y gráfico lineal por día, semana o mes, con filtros y diferenciados por rol. |
 | PQR | Radicación y seguimiento de peticiones, quejas y reclamos con estados Pendiente, En proceso, Respondida y Cerrada. |
 | Chatbot | Asistente en el sitio que responde a través de FastAPI usando el servicio de IA configurado. |
+| Recuperación de contraseña | Enlace de un solo uso con vigencia de 60 minutos, enviado por correo. Si no hay SMTP configurado el enlace se imprime en la consola del backend, suficiente para desarrollo. El token se guarda solo como hash y nunca viaja en la respuesta de la API. |
 
 Los Dashboards no tienen datos escritos a mano: React consume los endpoints de FastAPI y
 FastAPI calcula los indicadores y las series con consultas a la base de datos.
@@ -96,7 +101,7 @@ está en `backend/schema.sql`. En desarrollo la API usa SQLite y crea todo autom
 - Frontend: `npm test` (Vitest).
 - Backend: `pip install -r backend/requirements-dev.txt` y `python -m pytest backend`.
   Las pruebas corren sobre una base temporal y cubren ventas, reportes PDF/Excel, facturación,
-  Dashboards, PQR, chatbot y permisos por rol.
+  Dashboards, PQR, chatbot, recuperación de contraseña y permisos por rol.
 - Postman: importa `postman/SimonC-API.postman_collection.json`, ejecuta *Login JWT*, copia el
   token en la variable `token` y prueba los grupos Ventas, Reportes, Facturación, Dashboards,
   PQR y Chatbot con IA.

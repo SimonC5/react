@@ -63,6 +63,7 @@ export const authApi = {
   register: (body) => apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   me: () => apiRequest('/auth/me'),
   recover: (email) => apiRequest('/auth/recover', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (body) => apiRequest('/auth/reset-password', { method: 'POST', body: JSON.stringify(body) }),
 };
 
 export const ventasApi = {
