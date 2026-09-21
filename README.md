@@ -120,6 +120,17 @@ Lo único que cambia entre los dos motores es la forma de agrupar por día,
 semana y mes en los Dashboards (`backend/dashboard.py`); el resto del SQL se
 escribe una sola vez y `backend/core.py` lo traduce.
 
+### Diagrama de relaciones
+
+Las 14 tablas son InnoDB y llevan sus claves foráneas con nombre
+(`fk_ventas_cliente`, `fk_detalle_ventas_venta`, …), así que el **Diseñador**
+de phpMyAdmin dibuja las 12 relaciones solo: entra a la base `simonsc` y abre
+la pestaña *Diseñador*.
+
+La única relación que no aparece es `detalle_ventas.item_id`, porque apunta a
+`productos` o a `servicios` según el valor de `item_tipo` y MySQL no admite una
+clave foránea con dos destinos posibles.
+
 
 Tablas del quinto avance: `ventas`, `detalle_ventas`, `facturas`, `detalle_facturas`, `pqr`,
 `conversaciones` y `mensajes`, además de las de los avances anteriores. El script SQL completo
