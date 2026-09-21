@@ -181,11 +181,48 @@ def filtrar_sentencias(guion: str) -> list[str]:
     return [sentencia.strip() for sentencia in limpio.split(';') if sentencia.strip()]
 
 
+ER_BAD_DB_ERROR = 1049
+
+
+def _crear_base_mysql(parametros: dict[str, Any], nombre: str) -> None:
+    """Crea la base cuando todavía no existe, antes de crear las tablas.
+
+    Sin esto habría que crearla a mano en phpMyAdmin: la conexión pide una
+    base concreta y falla con 1049 si no está.
+    """
+    import mysql.connector
+
+    if '`' in nombre:
+        raise RuntimeError(f'Nombre de base de datos inválido: {nombre!r}')
+
+    servidor = mysql.connector.connect(**parametros, autocommit=True)
+    try:
+        cursor = servidor.cursor()
+        try:
+            cursor.execute(
+                f'CREATE DATABASE IF NOT EXISTS `{nombre}` '
+                'CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+            )
+        finally:
+            cursor.close()
+    finally:
+        servidor.close()
+
+
 def get_db_connection():
     if usa_mysql():
         import mysql.connector
 
-        return ConexionMySQL(mysql.connector.connect(**_parametros_mysql(), autocommit=False))
+        parametros = _parametros_mysql()
+        nombre = parametros.pop('database')
+        try:
+            conexion = mysql.connector.connect(**parametros, database=nombre, autocommit=False)
+        except mysql.connector.Error as error:
+            if getattr(error, 'errno', None) != ER_BAD_DB_ERROR:
+                raise
+            _crear_base_mysql(parametros, nombre)
+            conexion = mysql.connector.connect(**parametros, database=nombre, autocommit=False)
+        return ConexionMySQL(conexion)
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

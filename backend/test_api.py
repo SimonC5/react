@@ -269,3 +269,35 @@ def test_mysql_no_deja_resultados_sin_leer():
         assert conn.execute('SELECT COUNT(*) AS total FROM productos').fetchone()['total'] >= 0
     finally:
         conn.close()
+
+
+@pytest.mark.skipif(not core.usa_mysql(), reason='solo aplica cuando se corre contra MySQL')
+def test_mysql_crea_la_base_si_no_existe(monkeypatch):
+    """Borrar la base en phpMyAdmin no debe dejar el backend sin arrancar."""
+    parametros = core._parametros_mysql()
+    efimera = 'simonsc_tmp_creacion'
+
+    import mysql.connector
+
+    servidor = mysql.connector.connect(
+        **{k: v for k, v in parametros.items() if k != 'database'}, autocommit=True
+    )
+    cursor = servidor.cursor()
+    cursor.execute(f'DROP DATABASE IF EXISTS `{efimera}`')
+    cursor.close()
+    servidor.close()
+
+    monkeypatch.setattr(core, '_parametros_mysql', lambda: {**parametros, 'database': efimera})
+    conn = core.get_db_connection()
+    try:
+        assert conn.execute('SELECT DATABASE() AS actual').fetchone()['actual'] == efimera
+    finally:
+        conn.close()
+
+    servidor = mysql.connector.connect(
+        **{k: v for k, v in parametros.items() if k != 'database'}, autocommit=True
+    )
+    cursor = servidor.cursor()
+    cursor.execute(f'DROP DATABASE IF EXISTS `{efimera}`')
+    cursor.close()
+    servidor.close()

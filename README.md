@@ -111,10 +111,10 @@ DB_USER=root
 DB_PASSWORD=
 ```
 
-Al arrancar, la API crea las tablas que falten a partir de `backend/schema.sql`
-y siembra los roles, el administrador, el empleado y el catálogo. No hay que
-ejecutar nada a mano en phpMyAdmin, aunque el archivo también se puede importar
-desde ahí si se prefiere.
+Al arrancar, la API crea la base si no existe y dentro las tablas que falten, a
+partir de `backend/schema.sql`, y siembra los roles, el administrador, el
+empleado y el catálogo. No hay que crear ni importar nada a mano en phpMyAdmin,
+aunque el archivo también se puede importar desde ahí si se prefiere.
 
 Lo único que cambia entre los dos motores es la forma de agrupar por día,
 semana y mes en los Dashboards (`backend/dashboard.py`); el resto del SQL se
