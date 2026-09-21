@@ -11,6 +11,8 @@ try:
     from .schemas import UserCreateSchema
     from .database import initialize_models
     from .core import (
+        aplicar_schema_sql,
+        usa_mysql,
         DATA_DIR,
         DB_PATH,
         create_access_token,
@@ -28,6 +30,8 @@ except ImportError:
     from schemas import UserCreateSchema
     from database import initialize_models
     from core import (
+        aplicar_schema_sql,
+        usa_mysql,
         DATA_DIR,
         DB_PATH,
         create_access_token,
@@ -98,11 +102,17 @@ class ResourceStatus(BaseModel):
     active: bool
 
 def init_db():
-    DATA_DIR.mkdir(exist_ok=True, parents=True)
-    initialize_models(DB_PATH)
+    if not usa_mysql():
+        DATA_DIR.mkdir(exist_ok=True, parents=True)
+        initialize_models(DB_PATH)
     conn = get_db_connection()
     try:
-        conn.executescript(
+        if usa_mysql():
+            # En MySQL el esquema es el de backend/schema.sql, que ya trae los
+            # tipos propios del motor (INT AUTO_INCREMENT, DECIMAL, DATETIME).
+            aplicar_schema_sql(conn)
+        else:
+            conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS roles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,7 +166,7 @@ def init_db():
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             """
-        )
+            )
 
         roles = ['Administrador', 'Empleado', 'Cliente']
         for role_name in roles:
@@ -205,19 +215,23 @@ def init_db():
             ('servicios', 'Marketing UX', 'Optimización de experiencia de usuario.', 650000),
         )
         for table, name, description, price in seed_catalog:
-            conn.execute(
-                f'''
-                INSERT INTO {table} (name, description, price, active)
-                SELECT ?, ?, ?, 1
-                WHERE NOT EXISTS (SELECT 1 FROM {table} WHERE name = ?)
-                ''',
-                (name, description, price, name),
-            )
+            # Se comprueba antes de insertar porque "name" no es UNIQUE y la
+            # forma con WHERE NOT EXISTS no es portable entre SQLite y MySQL.
+            existe = conn.execute(f'SELECT 1 FROM {table} WHERE name = ?', (name,)).fetchone()
+            if existe is None:
+                conn.execute(
+                    f'INSERT INTO {table} (name, description, price, active) VALUES (?, ?, ?, 1)',
+                    (name, description, price),
+                )
 
         conn.commit()
 
-        init_comercial_db(conn)
-        init_recuperacion_db(conn)
+        if usa_mysql():
+            # Las tablas ya existen por schema.sql; falta sembrar la demo.
+            init_comercial_db(conn, crear_tablas=False)
+        else:
+            init_comercial_db(conn)
+            init_recuperacion_db(conn)
     finally:
         conn.close()
 

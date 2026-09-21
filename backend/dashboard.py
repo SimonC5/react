@@ -9,19 +9,32 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 try:
-    from .core import get_current_user, get_db_connection
+    from .core import get_current_user, get_db_connection, usa_mysql
     from .comercial import ESTADOS_PQR, ESTADOS_VENTA, money, parse_date
 except ImportError:
-    from core import get_current_user, get_db_connection
+    from core import get_current_user, get_db_connection, usa_mysql
     from comercial import ESTADOS_PQR, ESTADOS_VENTA, money, parse_date
 
 router = APIRouter(prefix='/api/dashboard', tags=['dashboard'])
 
-AGRUPACIONES = {
+# Agrupar por periodo es lo único que cambia de verdad entre los dos motores.
+# Las variantes de MySQL evitan el '%' a propósito: la consulta lleva
+# parámetros y ese símbolo se confundiría con un marcador de posición.
+AGRUPACIONES_SQLITE = {
     'dia': "strftime('%Y-%m-%d', v.fecha)",
     'semana': "strftime('%Y-S%W', v.fecha)",
     'mes': "strftime('%Y-%m', v.fecha)",
 }
+
+AGRUPACIONES_MYSQL = {
+    'dia': 'DATE(v.fecha)',
+    'semana': "CONCAT(YEAR(v.fecha), '-S', LPAD(WEEK(v.fecha), 2, '0'))",
+    'mes': "CONCAT(YEAR(v.fecha), '-', LPAD(MONTH(v.fecha), 2, '0'))",
+}
+
+
+def agrupaciones() -> dict[str, str]:
+    return AGRUPACIONES_MYSQL if usa_mysql() else AGRUPACIONES_SQLITE
 
 
 def _filtros_ventas(
@@ -185,12 +198,13 @@ def dashboard_ventas(
     limite: int = Query(12, ge=3, le=60),
 ):
     """Series para el gráfico de barras (montos) y el lineal (número de ventas)."""
-    if agrupacion not in AGRUPACIONES:
+    periodos = agrupaciones()
+    if agrupacion not in periodos:
         raise HTTPException(status_code=400, detail='La agrupación debe ser dia, semana o mes.')
 
     filtros, parametros = _filtros_ventas(fechaInicio, fechaFin, estado, cliente, producto, servicio, usuario)
     where = ' AND '.join(filtros)
-    periodo = AGRUPACIONES[agrupacion]
+    periodo = periodos[agrupacion]
 
     conn = get_db_connection()
     try:

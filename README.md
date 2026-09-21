@@ -31,6 +31,9 @@ Backend (`backend/.env`, a partir de `backend/.env.example`):
 
 | Variable | Para qué sirve |
 | --- | --- |
+| `DB_ENGINE` | `sqlite` (por defecto) o `mysql`. |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Datos del MySQL cuando `DB_ENGINE=mysql`. |
+| `DATABASE_URL` | Alternativa de una línea: `mysql://usuario:clave@host:3306/simonsc`. |
 | `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_EXPIRES_IN` | Firma y vigencia de los tokens. |
 | `FRONTEND_URL`, `CORS_ORIGINS` | Dominios autorizados por CORS en producción. |
 | `IA_API_KEY` | Clave del proveedor de IA que usa el chatbot. |
@@ -92,6 +95,32 @@ Administrador y Empleado; un Cliente solo ve sus propias ventas, facturas y PQR.
 
 ## Base de datos
 
+El backend funciona con dos motores y el mismo código. Se elige en `backend/.env`.
+
+**SQLite (por defecto).** No hay nada que instalar: la base se crea sola en
+`backend/data/simonsc.db` la primera vez que arranca la API.
+
+**MySQL (XAMPP).** En el panel de XAMPP arranca *MySQL* y luego pon en `backend/.env`:
+
+```
+DB_ENGINE=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=simonsc
+DB_USER=root
+DB_PASSWORD=
+```
+
+Al arrancar, la API crea las tablas que falten a partir de `backend/schema.sql`
+y siembra los roles, el administrador, el empleado y el catálogo. No hay que
+ejecutar nada a mano en phpMyAdmin, aunque el archivo también se puede importar
+desde ahí si se prefiere.
+
+Lo único que cambia entre los dos motores es la forma de agrupar por día,
+semana y mes en los Dashboards (`backend/dashboard.py`); el resto del SQL se
+escribe una sola vez y `backend/core.py` lo traduce.
+
+
 Tablas del quinto avance: `ventas`, `detalle_ventas`, `facturas`, `detalle_facturas`, `pqr`,
 `conversaciones` y `mensajes`, además de las de los avances anteriores. El script SQL completo
 está en `backend/schema.sql`. En desarrollo la API usa SQLite y crea todo automáticamente.
@@ -102,6 +131,8 @@ está en `backend/schema.sql`. En desarrollo la API usa SQLite y crea todo autom
 - Backend: `pip install -r backend/requirements-dev.txt` y `python -m pytest backend`.
   Las pruebas corren sobre una base temporal y cubren ventas, reportes PDF/Excel, facturación,
   Dashboards, PQR, chatbot, recuperación de contraseña y permisos por rol.
+  La misma suite pasa con los dos motores: `python -m pytest backend` usa SQLite y
+  `DB_ENGINE=mysql DB_NAME=simonsc_test python -m pytest backend` usa MySQL.
 - Postman: importa `postman/SimonC-API.postman_collection.json`, ejecuta *Login JWT*, copia el
   token en la variable `token` y prueba los grupos Ventas, Reportes, Facturación, Dashboards,
   PQR y Chatbot con IA.

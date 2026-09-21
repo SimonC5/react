@@ -222,9 +222,14 @@ def pqr_row(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def init_comercial_db(conn: sqlite3.Connection) -> None:
-    """Crea las tablas del quinto avance y siembra datos de demostración."""
-    conn.executescript(COMERCIAL_SCHEMA)
+def init_comercial_db(conn, crear_tablas: bool = True) -> None:
+    """Crea las tablas del quinto avance y siembra datos de demostración.
+
+    En MySQL las tablas ya vienen de ``backend/schema.sql``, así que solo se
+    siembra (``crear_tablas=False``).
+    """
+    if crear_tablas:
+        conn.executescript(COMERCIAL_SCHEMA)
     _seed_demo(conn)
     conn.commit()
 

@@ -231,3 +231,28 @@ def test_recuperacion_de_un_correo_inexistente_responde_igual(client):
     respuesta = client.post('/api/auth/recover', json={'email': 'nadie@simonsc.com'})
     assert respuesta.status_code == 200
     assert respuesta.json()['message'] == 'Si el correo existe, recibirás instrucciones para recuperar tu cuenta.'
+
+
+def test_la_traduccion_a_mysql_respeta_el_sql_de_sqlite():
+    """El SQL se escribe una sola vez y se adapta al motor en core.py."""
+    assert core._traducir('SELECT * FROM ventas WHERE id = ?') == 'SELECT * FROM ventas WHERE id = %s'
+    assert core._traducir('INSERT OR IGNORE INTO roles (name) VALUES (?)') == (
+        'INSERT IGNORE INTO roles (name) VALUES (%s)'
+    )
+
+
+def test_las_filas_se_leen_por_nombre_y_por_posicion():
+    """El resto del backend usa las dos formas, como con sqlite3.Row."""
+    fila = core.Fila([('total', 3), ('estado', 'Registrada')])
+    assert fila['total'] == 3
+    assert fila[0] == 3
+    assert fila[1] == 'Registrada'
+
+
+def test_los_valores_de_mysql_quedan_como_los_de_sqlite():
+    """Decimal y datetime se normalizan para que el JSON no cambie de forma."""
+    from datetime import datetime as _dt
+    from decimal import Decimal as _Dec
+
+    assert core._normalizar(_Dec('1500.50')) == 1500.5
+    assert core._normalizar(_dt(2026, 9, 21, 15, 4, 5, 123456)) == '2026-09-21 15:04:05'

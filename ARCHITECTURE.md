@@ -16,9 +16,9 @@ react/
     services/               Acceso a la API (api.js)
     utils/                  Formato de moneda y fechas, rutas por rol
     App.jsx                 Enrutador y composición de vistas
-  backend/                  API FastAPI sobre SQLite
+  backend/                  API FastAPI sobre SQLite o MySQL
     main.py                 Aplicación, autenticación, usuarios, productos y servicios
-    core.py                 Base de datos, JWT, roles y carga de backend/.env
+    core.py                 Base de datos (SQLite o MySQL), JWT, roles y carga de backend/.env
     models.py / schemas.py  Modelos ORM y contratos de entrada/salida
     database.py             Creación inicial de tablas
     comercial.py            Esquema y utilidades de las tablas comerciales
@@ -61,8 +61,18 @@ El frontend apunta a esta API mediante `VITE_API_URL`, con
 
 ## Base de datos
 
-SQLite en `backend/data/simonsc.db`, creada automáticamente al arrancar. El
-equivalente en MySQL para la entrega está en `backend/schema.sql`.
+El backend soporta dos motores con el mismo código, elegidos con `DB_ENGINE`
+en `backend/.env`:
+
+- **SQLite** (por defecto) en `backend/data/simonsc.db`, creada al arrancar.
+- **MySQL** (el de XAMPP o el del despliegue), cuyas tablas se crean al
+  arrancar a partir de `backend/schema.sql`.
+
+`core.py` traduce el SQL de SQLite al dialecto de MySQL (`?` a `%s`,
+`INSERT OR IGNORE` a `INSERT IGNORE`) y normaliza los valores que devuelve
+MySQL (`Decimal` a número, `DATETIME` a texto) para que la API responda igual
+con cualquiera de los dos. La única consulta escrita por separado para cada
+motor es la agrupación por día, semana y mes de los Dashboards.
 
 Tablas: `roles`, `usuarios`, `productos`, `servicios`, `ventas`,
 `detalle_ventas`, `facturas`, `detalle_facturas`, `pqr`, `conversaciones`,

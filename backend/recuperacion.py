@@ -55,6 +55,15 @@ def init_recuperacion_db(conn) -> None:
     conn.commit()
 
 
+def _ahora() -> datetime:
+    """UTC sin zona: el formato que entienden por igual SQLite y MySQL."""
+    return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+
+
+def _texto(momento: datetime) -> str:
+    return momento.isoformat(sep=' ')
+
+
 def _huella(token: str) -> str:
     """Solo se guarda el hash: si alguien lee la tabla no puede usar el enlace."""
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
@@ -107,7 +116,7 @@ def solicitar_recuperacion(payload: SolicitudRecuperacion):
         if usuario is None:
             return {'message': MENSAJE_GENERICO}
 
-        ahora = datetime.now(timezone.utc)
+        ahora = _ahora()
         token = secrets.token_urlsafe(32)
         conn.execute('UPDATE recuperaciones SET usado = 1 WHERE usuario_id = ? AND usado = 0', (usuario['id'],))
         conn.execute(
@@ -115,8 +124,8 @@ def solicitar_recuperacion(payload: SolicitudRecuperacion):
             (
                 usuario['id'],
                 _huella(token),
-                (ahora + timedelta(minutes=VIGENCIA_MINUTOS)).isoformat(),
-                ahora.isoformat(),
+                _texto(ahora + timedelta(minutes=VIGENCIA_MINUTOS)),
+                _texto(ahora),
             ),
         )
         conn.commit()
@@ -145,7 +154,7 @@ def cambiar_clave(payload: CambioDeClave):
         ).fetchone()
         if fila is None:
             raise HTTPException(status_code=400, detail='El enlace de recuperación no es válido o ya fue usado.')
-        if datetime.fromisoformat(fila['expira_en']) < datetime.now(timezone.utc):
+        if datetime.fromisoformat(str(fila['expira_en'])) < _ahora():
             raise HTTPException(status_code=400, detail='El enlace de recuperación venció. Solicita uno nuevo.')
 
         conn.execute('UPDATE usuarios SET password_hash = ? WHERE id = ?', (hash_password(clave), fila['usuario_id']))
