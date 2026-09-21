@@ -1,32 +1,113 @@
-## Tercer avance: API y base de datos
+# SimonC — Quinto avance (React + Vite → FastAPI → Base de datos SQL)
 
-La aplicación separa el frontend React + Vite del backend FastAPI en `backend/app/`, con base de datos SQL, hashing y autenticación JWT.
+Aplicación Full Stack de la agencia SimonC. El Frontend es React 19 + Vite + Tailwind 4 y el
+Backend es FastAPI con base de datos SQL, autenticación JWT y roles. El quinto avance añade
+gestión comercial, reportes, Dashboards, PQR y un chatbot con Inteligencia Artificial.
 
-1. Inicia Apache y MySQL desde el panel de XAMPP.
-2. En phpMyAdmin importa `backend/schema.sql` o ejecútalo en la pestaña SQL.
-3. Copia `backend/.env.example` como `backend/.env` y ajusta `DB_PASSWORD` si tu root tiene contraseña.
-4. Configura y activa el entorno virtual Python: `python -m venv .venv` y en PowerShell `.venv\Scripts\Activate.ps1`.
-5. Instala las dependencias principales: `pip install -r backend/requirements.txt` (`fastapi`, `uvicorn`, `SQLAlchemy`, JWT y validación de correo).
-6. Ejecuta `cd backend && python -m uvicorn app.main:app --reload --port 8000`.
-7. En otra terminal ejecuta `npm run dev` desde la raíz de Vite.
-8. Abre `http://localhost:5173`.
+## Cómo ejecutar el proyecto
 
-Usuarios semilla para pruebas: `admin@simonsc.com` / `Admin1234` y `empleado@simonsc.com` / `Empleado1234`. El esquema SQL está en `backend/schema.sql` y crea la base `simonsc`. Usa Postman contra `http://localhost:3001/api` para probar los endpoints protegidos con `Authorization: Bearer <token>`.
+1. Crea y activa el entorno virtual de Python:
+   `python -m venv .venv` y en PowerShell `.venv\Scripts\Activate.ps1` (en Linux/macOS `source .venv/bin/activate`).
+2. Instala las dependencias del Backend: `pip install -r backend/requirements.txt`.
+3. Copia `backend/.env.example` como `backend/.env` y ajusta los valores (ver *Variables de entorno*).
+4. Levanta la API: `cd backend && python -m uvicorn main:app --reload --port 8000`.
+   La base SQLite `backend/data/simonsc.db` se crea sola con las tablas y los datos iniciales.
+5. En otra terminal, desde la raíz: `npm install` y `npm run dev`.
+6. Abre `http://localhost:5173`. La documentación interactiva de la API está en `http://localhost:8000/docs`.
 
-La colección importable para Postman está en `postman/SimonC-API.postman_collection.json`.
-# React + Vite
+Usuarios de prueba: `admin@simonsc.com` / `Admin1234` y `empleado@simonsc.com` / `Empleado1234`.
+Cualquier persona puede registrarse desde el sitio y queda con el rol Cliente.
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## Variables de entorno
 
-Currently, two official plugins are available:
+Raíz (`.env`, a partir de `.env.example`):
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Variable | Para qué sirve |
+| --- | --- |
+| `VITE_API_URL` | URL de la API que consume el Frontend. |
+| `VITE_WHATSAPP_NUMBER` | Número del botón de WhatsApp. |
 
-## React Compiler
+Backend (`backend/.env`, a partir de `backend/.env.example`):
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Variable | Para qué sirve |
+| --- | --- |
+| `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_EXPIRES_IN` | Firma y vigencia de los tokens. |
+| `FRONTEND_URL`, `CORS_ORIGINS` | Dominios autorizados por CORS en producción. |
+| `IA_API_KEY` | Clave del proveedor de IA que usa el chatbot. |
+| `IA_API_URL`, `IA_MODEL`, `IA_TIMEOUT` | Endpoint, modelo y tiempo de espera del proveedor. |
 
-## Expanding the Oxlint configuration
+La API Key **nunca** se publica en GitHub ni se escribe en el código: se lee de `backend/.env`,
+que está en `.gitignore`, y en producción se configura como variable de entorno del servicio.
+Si no hay clave configurada, el chatbot sigue respondiendo con la información real del catálogo.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Módulos del quinto avance
+
+| Área | Qué hace |
+| --- | --- |
+| Ventas | Registro de ventas desde el sitio con productos y servicios, detalle por línea, descuentos e IVA, e historial filtrable por fecha, cliente, producto, servicio, estado y valor. |
+| Reportes | Reporte diario de ventas en pantalla y exportable a PDF y a Excel (`.xlsx`). |
+| Facturación | Generación de la factura a partir de una venta, consulta por número, cliente, estado o fecha, y descarga en PDF. |
+| Dashboards | Cards de indicadores, gráfico de barras y gráfico lineal por día, semana o mes, con filtros y diferenciados por rol. |
+| PQR | Radicación y seguimiento de peticiones, quejas y reclamos con estados Pendiente, En proceso, Respondida y Cerrada. |
+| Chatbot | Asistente en el sitio que responde a través de FastAPI usando el servicio de IA configurado. |
+
+Los Dashboards no tienen datos escritos a mano: React consume los endpoints de FastAPI y
+FastAPI calcula los indicadores y las series con consultas a la base de datos.
+
+## Endpoints nuevos
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| POST | `/api/ventas` | Registra una venta con su detalle. |
+| GET | `/api/ventas` | Historial con filtros. |
+| GET | `/api/ventas/{id}` | Venta y su detalle. |
+| PATCH | `/api/ventas/{id}/estado` | Cambia el estado de la venta. |
+| GET | `/api/reportes/ventas/diario` | Reporte diario en JSON. |
+| GET | `/api/reportes/ventas/diario.pdf` | Reporte diario en PDF. |
+| GET | `/api/reportes/ventas/diario.xlsx` | Reporte diario en Excel. |
+| POST | `/api/facturas` | Genera la factura de una venta. |
+| GET | `/api/facturas` | Consulta de facturas con filtros. |
+| GET | `/api/facturas/{id}` | Factura y su detalle. |
+| GET | `/api/facturas/{id}/pdf` | Descarga la factura en PDF. |
+| PATCH | `/api/facturas/{id}/estado` | Cambia el estado de la factura. |
+| GET | `/api/dashboard/resumen` | Indicadores tipo Card según el rol. |
+| GET | `/api/dashboard/ventas` | Series para los gráficos, con filtros. |
+| GET | `/api/dashboard/filtros` | Valores disponibles para los selectores. |
+| POST | `/api/pqr` | Radica una solicitud. |
+| GET | `/api/pqr` | Lista y filtra solicitudes. |
+| GET | `/api/pqr/{id}` | Consulta una solicitud. |
+| PATCH | `/api/pqr/{id}` | Actualiza estado y respuesta. |
+| POST | `/api/chatbot/mensajes` | Envía un mensaje y devuelve la respuesta. |
+| GET | `/api/chatbot/conversaciones` | Conversaciones del usuario. |
+| GET | `/api/chatbot/conversaciones/{id}` | Mensajes de una conversación. |
+| GET | `/api/chatbot/estado` | Indica si hay servicio de IA configurado. |
+
+Todos requieren `Authorization: Bearer <token>`. Los reportes y el registro de ventas son de
+Administrador y Empleado; un Cliente solo ve sus propias ventas, facturas y PQR.
+
+## Base de datos
+
+Tablas del quinto avance: `ventas`, `detalle_ventas`, `facturas`, `detalle_facturas`, `pqr`,
+`conversaciones` y `mensajes`, además de las de los avances anteriores. El script SQL completo
+está en `backend/schema.sql`. En desarrollo la API usa SQLite y crea todo automáticamente.
+
+## Pruebas
+
+- Frontend: `npm test` (Vitest).
+- Backend: `pip install -r backend/requirements-dev.txt` y `python -m pytest backend`.
+  Las pruebas corren sobre una base temporal y cubren ventas, reportes PDF/Excel, facturación,
+  Dashboards, PQR, chatbot y permisos por rol.
+- Postman: importa `postman/SimonC-API.postman_collection.json`, ejecuta *Login JWT*, copia el
+  token en la variable `token` y prueba los grupos Ventas, Reportes, Facturación, Dashboards,
+  PQR y Chatbot con IA.
+- Calidad: `npm run lint` y `npm run build`.
+
+## Despliegue
+
+`railway.json` y `backend/Procfile` dejan el Backend listo para Railway con
+`uvicorn main:app --host 0.0.0.0 --port $PORT`. Pasos:
+
+1. Publica el Backend y define allí `JWT_SECRET`, `IA_API_KEY`, `FRONTEND_URL` y `CORS_ORIGINS`.
+2. Publica el Frontend (`npm run build`, carpeta `dist/`) con `VITE_API_URL` apuntando a la URL
+   pública de la API.
+3. Verifica el flujo completo en producción y adjunta la URL pública como evidencia.

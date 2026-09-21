@@ -1,21 +1,723 @@
 {
-  "info": { "name": "SimonC API - Cuarto avance FastAPI", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
-  "variable": [{ "key": "baseUrl", "value": "http://127.0.0.1:8000/api" }, { "key": "token", "value": "" }, { "key": "resourceId", "value": "1" }],
+  "info": {
+    "name": "SimonC API - Quinto avance FastAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "resourceId",
+      "value": "1"
+    },
+    {
+      "key": "ventaId",
+      "value": "1"
+    },
+    {
+      "key": "facturaId",
+      "value": "1"
+    },
+    {
+      "key": "pqrId",
+      "value": "1"
+    },
+    {
+      "key": "fecha",
+      "value": ""
+    },
+    {
+      "key": "conversacionId",
+      "value": "1"
+    }
+  ],
   "item": [
-    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
-    { "name": "Registrar cliente", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana\",\n  \"lastName\": \"Prueba\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"12345678\",\n  \"address\": \"Calle 10 #20-30\",\n  \"phone\": \"3001234567\",\n  \"email\": \"ana@example.com\",\n  \"password\": \"Ana12345\"\n}" }, "url": "{{baseUrl}}/usuarios/registro" } },
-    { "name": "Login JWT", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@simonsc.com\",\n  \"password\": \"Admin1234\"\n}" }, "url": "{{baseUrl}}/auth/login" } },
-    { "name": "Usuarios protegidos", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/users" } },
-    { "name": "Productos GET", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/products" } },
-    { "name": "Productos POST", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Producto demo\",\"description\":\"Prueba\",\"price\":100000}" }, "url": "{{baseUrl}}/products" } },
-    { "name": "Productos PUT", "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Producto actualizado\",\"description\":\"Edición\",\"price\":120000}" }, "url": "{{baseUrl}}/products/{{resourceId}}" } },
-    { "name": "Productos PATCH estado", "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"active\":false}" }, "url": "{{baseUrl}}/products/{{resourceId}}/status" } },
-    { "name": "Productos DELETE", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/products/{{resourceId}}" } },
-    { "name": "Servicios GET", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/services" } },
-    { "name": "Servicios POST", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Servicio demo\",\"description\":\"Prueba\",\"price\":200000}" }, "url": "{{baseUrl}}/services" } },
-    { "name": "Servicios PUT", "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Servicio actualizado\",\"description\":\"Edición\",\"price\":220000}" }, "url": "{{baseUrl}}/services/{{resourceId}}" } },
-    { "name": "Servicios PATCH estado", "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"active\":false}" }, "url": "{{baseUrl}}/services/{{resourceId}}/status" } },
-    { "name": "Servicios DELETE", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{baseUrl}}/services/{{resourceId}}" } },
-    { "name": "Recuperar contraseña", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"email\":\"ana@example.com\"}" }, "url": "{{baseUrl}}/auth/recover" } }
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Registrar cliente",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Ana\",\n  \"lastName\": \"Prueba\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"12345678\",\n  \"address\": \"Calle 10 #20-30\",\n  \"phone\": \"3001234567\",\n  \"email\": \"ana@example.com\",\n  \"password\": \"Ana12345\"\n}"
+        },
+        "url": "{{baseUrl}}/usuarios/registro"
+      }
+    },
+    {
+      "name": "Login JWT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@simonsc.com\",\n  \"password\": \"Admin1234\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Usuarios protegidos",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users"
+      }
+    },
+    {
+      "name": "Productos GET",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/products"
+      }
+    },
+    {
+      "name": "Productos POST",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Producto demo\",\"description\":\"Prueba\",\"price\":100000}"
+        },
+        "url": "{{baseUrl}}/products"
+      }
+    },
+    {
+      "name": "Productos PUT",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Producto actualizado\",\"description\":\"Edición\",\"price\":120000}"
+        },
+        "url": "{{baseUrl}}/products/{{resourceId}}"
+      }
+    },
+    {
+      "name": "Productos PATCH estado",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"active\":false}"
+        },
+        "url": "{{baseUrl}}/products/{{resourceId}}/status"
+      }
+    },
+    {
+      "name": "Productos DELETE",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/products/{{resourceId}}"
+      }
+    },
+    {
+      "name": "Servicios GET",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/services"
+      }
+    },
+    {
+      "name": "Servicios POST",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Servicio demo\",\"description\":\"Prueba\",\"price\":200000}"
+        },
+        "url": "{{baseUrl}}/services"
+      }
+    },
+    {
+      "name": "Servicios PUT",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Servicio actualizado\",\"description\":\"Edición\",\"price\":220000}"
+        },
+        "url": "{{baseUrl}}/services/{{resourceId}}"
+      }
+    },
+    {
+      "name": "Servicios PATCH estado",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"active\":false}"
+        },
+        "url": "{{baseUrl}}/services/{{resourceId}}/status"
+      }
+    },
+    {
+      "name": "Servicios DELETE",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/services/{{resourceId}}"
+      }
+    },
+    {
+      "name": "Recuperar contraseña",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"ana@example.com\"}"
+        },
+        "url": "{{baseUrl}}/auth/recover"
+      }
+    },
+    {
+      "name": "Ventas",
+      "item": [
+        {
+          "name": "Registrar venta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Laura Gómez\",\n  \"clienteDocumento\": \"1024567890\",\n  \"observaciones\": \"Venta desde el sitio web\",\n  \"items\": [\n    {\n      \"tipo\": \"producto\",\n      \"itemId\": 1,\n      \"cantidad\": 2,\n      \"descuento\": 0\n    },\n    {\n      \"tipo\": \"servicio\",\n      \"itemId\": 1,\n      \"cantidad\": 1,\n      \"descuento\": 50000\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Historial de ventas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas"
+          }
+        },
+        {
+          "name": "Historial filtrado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas?fechaInicio=2026-01-01&estado=Pagada&cliente=Laura"
+          }
+        },
+        {
+          "name": "Detalle de una venta",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas/{{ventaId}}"
+          }
+        },
+        {
+          "name": "Cambiar estado de la venta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas/{{ventaId}}/estado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"Pagada\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reportes",
+      "item": [
+        {
+          "name": "Reporte diario (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reportes/ventas/diario"
+          }
+        },
+        {
+          "name": "Reporte diario en PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reportes/ventas/diario.pdf"
+          }
+        },
+        {
+          "name": "Reporte diario en Excel",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reportes/ventas/diario.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Facturación",
+      "item": [
+        {
+          "name": "Generar factura",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/facturas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ventaId\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Consultar facturas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/facturas"
+          }
+        },
+        {
+          "name": "Buscar factura por número",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/facturas?numero=FV-000001"
+          }
+        },
+        {
+          "name": "Detalle de la factura",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/facturas/{{facturaId}}"
+          }
+        },
+        {
+          "name": "Descargar factura en PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/facturas/{{facturaId}}/pdf"
+          }
+        },
+        {
+          "name": "Cambiar estado de la factura",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/facturas/{{facturaId}}/estado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"Pagada\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboards",
+      "item": [
+        {
+          "name": "Indicadores (Cards)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/dashboard/resumen"
+          }
+        },
+        {
+          "name": "Series por día",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/dashboard/ventas?agrupacion=dia"
+          }
+        },
+        {
+          "name": "Series por mes con filtros",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/dashboard/ventas?agrupacion=mes&fechaInicio=2026-01-01&estado=Pagada"
+          }
+        },
+        {
+          "name": "Opciones de filtro",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/dashboard/filtros"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PQR",
+      "item": [
+        {
+          "name": "Radicar PQR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pqr",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"Queja\",\n  \"asunto\": \"Demora en la entrega\",\n  \"descripcion\": \"El pedido llegó dos días después de lo acordado.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar PQR",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/pqr"
+          }
+        },
+        {
+          "name": "Filtrar PQR por estado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/pqr?estado=Pendiente"
+          }
+        },
+        {
+          "name": "Gestionar PQR",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pqr/{{pqrId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"Respondida\",\n  \"respuesta\": \"Caso resuelto.\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chatbot con IA",
+      "item": [
+        {
+          "name": "Estado del servicio de IA",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chatbot/estado"
+          }
+        },
+        {
+          "name": "Enviar mensaje",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/chatbot/mensajes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensaje\": \"¿Qué servicios ofrecen?\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Continuar conversación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/chatbot/mensajes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensaje\": \"Quiero poner una queja\",\n  \"conversacionId\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Historial de la conversación",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chatbot/conversaciones/{{conversacionId}}"
+          }
+        }
+      ]
+    }
   ]
 }

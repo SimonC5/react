@@ -10,6 +10,7 @@ import ProductsPage from './pages/ProductsPage'
 import ServicesPage from './pages/ServicesPage'
 import DashboardPage from './pages/DashboardPage'
 import WhatsAppButton from './components/WhatsAppButton'
+import Chatbot from './components/Chatbot'
 import { AuthProvider } from './context/AuthContext'
 
 function ScrollToHash() {
@@ -56,6 +57,7 @@ function App() {
         </main>
         <Footer />
         <WhatsAppButton />
+        <Chatbot />
       </div>
       </BrowserRouter>
     </AuthProvider>

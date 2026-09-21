@@ -1,58 +1,69 @@
 import os
 import sqlite3
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Optional
 
-import jwt
-import bcrypt
-from fastapi import Depends, FastAPI, HTTPException, Header, status
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr
 try:
     from .models import Base
     from .schemas import UserCreateSchema
     from .database import initialize_models
+    from .core import (
+        DATA_DIR,
+        DB_PATH,
+        create_access_token,
+        get_current_user,
+        get_db_connection,
+        hash_password,
+        require_roles,
+        verify_password,
+    )
+    from .comercial import init_comercial_db
+    from . import chatbot, dashboard, facturas, pqr, reportes, ventas
 except ImportError:
     from models import Base
     from schemas import UserCreateSchema
     from database import initialize_models
+    from core import (
+        DATA_DIR,
+        DB_PATH,
+        create_access_token,
+        get_current_user,
+        get_db_connection,
+        hash_password,
+        require_roles,
+        verify_password,
+    )
+    from comercial import init_comercial_db
+    import chatbot, dashboard, facturas, pqr, reportes, ventas
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / 'data'
-DB_PATH = DATA_DIR / 'simonsc.db'
+DEFAULT_ORIGINS = [
+    'http://localhost:5173', 'http://127.0.0.1:5173',
+    'http://localhost:5174', 'http://127.0.0.1:5174',
+    'http://localhost:5175', 'http://127.0.0.1:5175',
+    'http://localhost:5176', 'http://127.0.0.1:5176',
+]
+# En producción el dominio del Frontend se configura con FRONTEND_URL / CORS_ORIGINS.
+EXTRA_ORIGINS = [
+    origen.strip()
+    for origen in f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
+    if origen.strip()
+]
 
-SECRET_KEY = os.getenv('JWT_SECRET', 'simonsc-development-secret-change-me')
-ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('JWT_EXPIRES_IN', '120').replace('h', '')) * 60 if os.getenv('JWT_EXPIRES_IN', '').endswith('h') else 120
-
-pwd_context = CryptContext(schemes=['pbkdf2_sha256'], deprecated='auto')
-
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-
-def verify_password(password: str, stored_hash: str) -> bool:
-    if stored_hash.startswith('$2'):
-        return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
-    return pwd_context.verify(password, stored_hash)
-
-app = FastAPI(title='SimonC API', version='1.0.0')
+app = FastAPI(title='SimonC API', version='2.0.0')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        'http://localhost:5173', 'http://127.0.0.1:5173',
-        'http://localhost:5174', 'http://127.0.0.1:5174',
-        'http://localhost:5175', 'http://127.0.0.1:5175',
-        'http://localhost:5176', 'http://127.0.0.1:5176',
-    ],
+    allow_origins=DEFAULT_ORIGINS + EXTRA_ORIGINS,
+    allow_origin_regex=os.getenv('CORS_ORIGIN_REGEX') or None,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+for modulo in (ventas, facturas, reportes, dashboard, pqr, chatbot):
+    app.include_router(modulo.router)
 
 class UserCreate(BaseModel):
     name: str
@@ -86,12 +97,6 @@ class ResourceStatus(BaseModel):
 
 class AuthRecovery(BaseModel):
     email: EmailStr
-
-
-def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def init_db():
@@ -211,59 +216,10 @@ def init_db():
         )
 
         conn.commit()
+
+        init_comercial_db(conn)
     finally:
         conn.close()
-
-
-def create_access_token(subject: dict[str, Any]) -> str:
-    expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    expire = datetime.now(timezone.utc) + expires_delta
-    to_encode = {'exp': expire, **subject}
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-def decode_token(token: str) -> dict[str, Any]:
-    try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token inválido o expirado.') from exc
-
-
-def get_current_user(authorization: Optional[str] = Header(None)):
-    if authorization is None or not authorization.startswith('Bearer '):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token requerido.')
-    token = authorization.replace('Bearer ', '', 1)
-    payload = decode_token(token)
-    user_email = payload.get('email')
-    if not user_email:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token inválido.')
-
-    conn = get_db_connection()
-    try:
-        user = conn.execute(
-            '''
-            SELECT u.*, r.name AS role
-            FROM usuarios u
-            JOIN roles r ON r.id = u.role_id
-            WHERE u.email = ?
-            ''',
-            (user_email,),
-        ).fetchone()
-    finally:
-        conn.close()
-
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Usuario no encontrado.')
-    return dict(user)
-
-
-def require_roles(*roles: str):
-    def dependency(current_user: dict[str, Any] = Depends(get_current_user)):
-        if current_user.get('role') not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='No tienes permisos para esta acción.')
-        return current_user
-
-    return dependency
 
 
 def normalize_email(value: str) -> str:
@@ -306,7 +262,7 @@ def register(payload: UserCreate):
             raise HTTPException(status_code=500, detail='No se pudo definir el rol del cliente.')
         try:
             cursor = conn.execute(
-                'INSERT INTO usuarios (name, last_name, document_type, document_number, address, phone, email, password_hash, role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO usuarios (name, last_name, document_type, document_number, address, phone, email, password_hash, active, role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)',
                 (payload.name.strip(), payload.lastName.strip(), payload.documentType, payload.documentNumber.strip(), payload.address.strip(), payload.phone.strip(), email, hash_password(payload.password), role['id']),
             )
             conn.commit()
@@ -402,7 +358,7 @@ def create_user(payload: dict[str, Any], current_user: dict[str, Any] = Depends(
             raise HTTPException(status_code=400, detail='Rol inválido.')
         try:
             cursor = conn.execute(
-                'INSERT INTO usuarios (name, last_name, document_type, document_number, address, phone, email, password_hash, role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO usuarios (name, last_name, document_type, document_number, address, phone, email, password_hash, active, role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)',
                 (
                     str(payload['name']).strip(),
                     str(payload['lastName']).strip(),
@@ -508,7 +464,7 @@ def create_product(payload: ResourceCreate, current_user: dict[str, Any] = Depen
     conn = get_db_connection()
     try:
         cursor = conn.execute(
-            'INSERT INTO productos (name, description, price) VALUES (?, ?, ?)',
+            'INSERT INTO productos (name, description, price, active) VALUES (?, ?, ?, 1)',
             (payload.name.strip(), payload.description.strip(), float(payload.price)),
         )
         conn.commit()
@@ -578,7 +534,7 @@ def create_service(payload: ResourceCreate, current_user: dict[str, Any] = Depen
     conn = get_db_connection()
     try:
         cursor = conn.execute(
-            'INSERT INTO servicios (name, description, price) VALUES (?, ?, ?)',
+            'INSERT INTO servicios (name, description, price, active) VALUES (?, ?, ?, 1)',
             (payload.name.strip(), payload.description.strip(), float(payload.price)),
         )
         conn.commit()

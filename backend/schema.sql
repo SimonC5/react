@@ -6,3 +6,106 @@ CREATE TABLE IF NOT EXISTS role_permisos (role_id INT NOT NULL, permiso_id INT N
 CREATE TABLE IF NOT EXISTS usuarios (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(80) NOT NULL, last_name VARCHAR(80) NOT NULL, document_type VARCHAR(20) NOT NULL, document_number VARCHAR(12) NOT NULL UNIQUE, address VARCHAR(150) NOT NULL, phone VARCHAR(20) NOT NULL, email VARCHAR(120) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, active TINYINT(1) NOT NULL DEFAULT 1, role_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (role_id) REFERENCES roles(id));
 CREATE TABLE IF NOT EXISTS productos (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '', price DECIMAL(12,2) NOT NULL DEFAULT 0, active TINYINT(1) NOT NULL DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS servicios (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '', price DECIMAL(12,2) NOT NULL DEFAULT 0, active TINYINT(1) NOT NULL DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+-- Quinto avance: módulo comercial, PQR y chatbot.
+CREATE TABLE IF NOT EXISTS ventas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  numero VARCHAR(20) NOT NULL UNIQUE,
+  cliente_id INT NULL,
+  cliente_nombre VARCHAR(160) NOT NULL,
+  cliente_documento VARCHAR(20) NOT NULL DEFAULT '',
+  usuario_id INT NULL,
+  usuario_nombre VARCHAR(160) NOT NULL DEFAULT '',
+  subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+  descuento DECIMAL(12,2) NOT NULL DEFAULT 0,
+  impuestos DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total DECIMAL(12,2) NOT NULL DEFAULT 0,
+  estado VARCHAR(20) NOT NULL DEFAULT 'Registrada',
+  observaciones VARCHAR(255) NOT NULL DEFAULT '',
+  fecha DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ventas_fecha (fecha),
+  FOREIGN KEY (cliente_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS detalle_ventas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  venta_id INT NOT NULL,
+  item_tipo VARCHAR(20) NOT NULL,
+  item_id INT NULL,
+  nombre VARCHAR(160) NOT NULL,
+  cantidad DECIMAL(12,2) NOT NULL DEFAULT 1,
+  precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0,
+  descuento DECIMAL(12,2) NOT NULL DEFAULT 0,
+  impuesto DECIMAL(12,2) NOT NULL DEFAULT 0,
+  subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total DECIMAL(12,2) NOT NULL DEFAULT 0,
+  FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS facturas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  numero VARCHAR(20) NOT NULL UNIQUE,
+  venta_id INT NOT NULL UNIQUE,
+  cliente_nombre VARCHAR(160) NOT NULL,
+  cliente_documento VARCHAR(20) NOT NULL DEFAULT '',
+  subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+  descuento DECIMAL(12,2) NOT NULL DEFAULT 0,
+  impuestos DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total DECIMAL(12,2) NOT NULL DEFAULT 0,
+  estado VARCHAR(20) NOT NULL DEFAULT 'Emitida',
+  fecha DATETIME NOT NULL,
+  INDEX idx_facturas_fecha (fecha),
+  FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS detalle_facturas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  factura_id INT NOT NULL,
+  item_tipo VARCHAR(20) NOT NULL,
+  nombre VARCHAR(160) NOT NULL,
+  cantidad DECIMAL(12,2) NOT NULL DEFAULT 1,
+  precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0,
+  descuento DECIMAL(12,2) NOT NULL DEFAULT 0,
+  impuesto DECIMAL(12,2) NOT NULL DEFAULT 0,
+  subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total DECIMAL(12,2) NOT NULL DEFAULT 0,
+  FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pqr (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  radicado VARCHAR(20) NOT NULL UNIQUE,
+  tipo VARCHAR(20) NOT NULL DEFAULT 'Petición',
+  asunto VARCHAR(160) NOT NULL,
+  descripcion TEXT NOT NULL,
+  estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+  respuesta TEXT NULL,
+  cliente_id INT NULL,
+  cliente_nombre VARCHAR(160) NOT NULL,
+  cliente_email VARCHAR(120) NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  INDEX idx_pqr_estado (estado),
+  FOREIGN KEY (cliente_id) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS conversaciones (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  usuario_id INT NULL,
+  titulo VARCHAR(120) NOT NULL DEFAULT 'Conversación',
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS mensajes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  conversacion_id INT NOT NULL,
+  rol VARCHAR(20) NOT NULL,
+  contenido TEXT NOT NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_mensajes_conversacion (conversacion_id),
+  FOREIGN KEY (conversacion_id) REFERENCES conversaciones(id) ON DELETE CASCADE
+);

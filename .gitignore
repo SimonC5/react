@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 backend/.env
+.env
+.env.*
+!.env.example
 backend/data/*.db
 backend/data/*.sqlite
 backend/__pycache__/
