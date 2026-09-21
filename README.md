@@ -131,6 +131,11 @@ La única relación que no aparece es `detalle_ventas.item_id`, porque apunta a
 `productos` o a `servicios` según el valor de `item_tipo` y MySQL no admite una
 clave foránea con dos destinos posibles.
 
+Para que además salgan **colocadas** y no amontonadas, ejecuta una vez
+`backend/designer_layout.sql` desde la pestaña SQL de phpMyAdmin. Deja las
+tablas en columnas de izquierda a derecha siguiendo las dependencias. Se puede
+repetir sin problema: rehace la distribución desde cero.
+
 
 Tablas del quinto avance: `ventas`, `detalle_ventas`, `facturas`, `detalle_facturas`, `pqr`,
 `conversaciones` y `mensajes`, además de las de los avances anteriores. El script SQL completo
