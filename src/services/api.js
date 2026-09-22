@@ -1,3 +1,20 @@
+/** Dominio desde el que se está viendo la página, si hay navegador. */
+function dominioActual() {
+  return typeof window === 'undefined' ? '' : (window.location?.hostname ?? '');
+}
+
+function apiPorDefecto(dominio) {
+  // Sin dominio (o en el computador de uno) el backend corre al lado.
+  if (!dominio || /^(localhost|127\.0\.0\.1)$/i.test(dominio)) return 'http://localhost:8000/api';
+  // Publicado y sin VITE_API_URL. Antes se llamaba igual a localhost:8000, o
+  // sea al computador del visitante, y el navegador lo bloqueaba sin explicar
+  // nada. En Render los dos servicios del proyecto se llaman igual salvo el
+  // sufijo, así que la API de "simonc-web.onrender.com" es
+  // "simonc-api.onrender.com". Es una suposición, pero acierta en el despliegue
+  // del proyecto y falla con un error claro en cualquier otro.
+  return `https://${dominio.replace(/-web\b/, '-api')}/api`;
+}
+
 /**
  * Normaliza VITE_API_URL para el despliegue.
  *
@@ -6,9 +23,9 @@
  * peticiones fallan sin decir por qué. Se aceptan las tres formas: con o sin
  * "https://", con o sin "/api" y con o sin barra final.
  */
-export function normalizarApiUrl(valor) {
+export function normalizarApiUrl(valor, dominio = dominioActual()) {
   let url = String(valor ?? '').trim().replace(/\/+$/, '');
-  if (!url) return 'http://localhost:8000/api';
+  if (!url) return apiPorDefecto(dominio);
   if (!/^https?:\/\//i.test(url)) {
     const esLocal = /^(localhost|127\.0\.0\.1)(:|$)/i.test(url);
     url = `${esLocal ? 'http' : 'https'}://${url}`;
@@ -17,6 +34,22 @@ export function normalizarApiUrl(valor) {
 }
 
 const API_URL = normalizarApiUrl(import.meta.env.VITE_API_URL);
+
+/**
+ * Explica la caída según dónde esté corriendo la página.
+ *
+ * En el sitio publicado no sirve de nada decirle al visitante que arranque
+ * uvicorn: lo que pasa es que la API no contesta, casi siempre porque el plan
+ * gratuito la durmió o porque quedó apuntando a otra dirección. Por eso el
+ * mensaje dice a qué dirección se intentó llamar.
+ */
+function errorDeConexion() {
+  const dominio = dominioActual();
+  if (!dominio || /^(localhost|127\.0\.0\.1)$/i.test(dominio)) {
+    return 'No se pudo conectar con el servidor. Inicia el backend con "uvicorn main:app --reload" dentro de la carpeta backend.';
+  }
+  return `No se pudo conectar con el servidor (${API_URL}). Si el servicio estaba dormido puede tardar hasta un minuto en despertar: espera un momento y vuelve a intentar.`;
+}
 
 const TOKEN_KEY = 'simonsc_token';
 
@@ -42,7 +75,7 @@ export async function apiRequest(path, options = {}) {
       headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options.headers },
     });
   } catch {
-    throw new Error('No se pudo conectar con el servidor. Inicia el backend con "uvicorn main:app --reload" dentro de la carpeta backend.');
+    throw new Error(errorDeConexion());
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || data.message || 'No fue posible completar la solicitud.');
@@ -55,7 +88,7 @@ export async function apiDownload(path, fallbackName) {
   try {
     response = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
   } catch {
-    throw new Error('No se pudo conectar con el servidor para descargar el archivo.');
+    throw new Error(errorDeConexion());
   }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
