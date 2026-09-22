@@ -16,6 +16,7 @@ try:
         DATA_DIR,
         DB_PATH,
         create_access_token,
+        dominio_publico,
         get_current_user,
         get_db_connection,
         hash_password,
@@ -36,6 +37,7 @@ except ImportError:
         DATA_DIR,
         DB_PATH,
         create_access_token,
+        dominio_publico,
         get_current_user,
         get_db_connection,
         hash_password,
@@ -54,27 +56,13 @@ DEFAULT_ORIGINS = [
     'http://localhost:5176', 'http://127.0.0.1:5176',
 ]
 
-def _origen_normalizado(valor: str) -> str:
-    """Deja un origen de CORS como lo manda el navegador.
-
-    El navegador envía exactamente "https://dominio", sin barra final, así que
-    un valor con "/" al final o sin el "https://" no coincide nunca. Eso es justo
-    lo que queda al copiar la URL del panel del hosting, y el síntoma (todo
-    falla por CORS) no apunta a la causa, así que se corrige aquí.
-    """
-    origen = valor.strip().rstrip('/')
-    if not origen:
-        return ''
-    if '://' not in origen:
-        origen = f'https://{origen}'
-    return origen
 
 
 # En producción el dominio del Frontend se configura con FRONTEND_URL / CORS_ORIGINS.
 EXTRA_ORIGINS = list(dict.fromkeys(
     origen
     for origen in (
-        _origen_normalizado(valor)
+        dominio_publico(valor)
         for valor in f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
     )
     if origen

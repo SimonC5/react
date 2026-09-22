@@ -30,7 +30,27 @@ export function normalizarApiUrl(valor, dominio = dominioActual()) {
     const esLocal = /^(localhost|127\.0\.0\.1)(:|$)/i.test(url);
     url = `${esLocal ? 'http' : 'https'}://${url}`;
   }
+  if (!alcanzableDesdeElNavegador(url)) return apiPorDefecto(dominio);
   return /\/api$/i.test(url) ? url : `${url}/api`;
+}
+
+/**
+ * Descarta direcciones que el navegador no puede resolver.
+ *
+ * "simonc-api" no es una dirección de internet: es el nombre interno con el que
+ * los servicios del hosting se hablan entre ellos, y es lo que Render entrega
+ * al enlazar un servicio con otro en el blueprint. Al navegador del visitante
+ * no le sirve, así que es mejor deducir la dirección pública que intentar una
+ * que no existe.
+ */
+function alcanzableDesdeElNavegador(url) {
+  let dominio;
+  try {
+    dominio = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+  return dominio.includes('.') || /^localhost$/i.test(dominio);
 }
 
 const API_URL = normalizarApiUrl(import.meta.env.VITE_API_URL);

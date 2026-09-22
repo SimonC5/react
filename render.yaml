@@ -1,7 +1,8 @@
 # Despliegue en Render (https://render.com). Al conectar el repositorio, Render
-# lee este archivo y crea los dos servicios ya enlazados entre sí: no hay que
-# copiar URLs de un servicio al otro a mano. Las claves reales (IA_API_KEY) se
-# escriben en el panel de Render, nunca en el repositorio.
+# lee este archivo y crea los dos servicios. Las direcciones públicas van
+# escritas completas: al enlazar un servicio con otro, Render entrega el nombre
+# interno ("simonc-api"), que el navegador no puede resolver. Las claves reales
+# (IA_API_KEY) se escriben en el panel de Render, nunca en el repositorio.
 services:
   # API FastAPI. Sin DB_ENGINE usa SQLite, que se crea y se siembra al arrancar.
   - type: web
@@ -16,12 +17,15 @@ services:
         value: 3.11.9
       - key: JWT_SECRET
         generateValue: true
-      # El dominio del Frontend lo pone Render solo, para que CORS cuadre.
+      # Dominio público del Frontend, para que CORS cuadre y para los enlaces
+      # de recuperación de contraseña. Va escrito completo a propósito: al
+      # enlazar servicios, Render entrega el nombre interno ("simonc-web"), que
+      # el navegador no puede resolver.
       - key: FRONTEND_URL
-        fromService:
-          name: simonc-web
-          type: web
-          property: host
+        value: https://simonc-web.onrender.com
+      # Red de seguridad por si Render le agrega un sufijo al nombre.
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://simonc-web(-[a-z0-9]+)?\.onrender\.com$
       # Chatbot: la clave se escribe en el panel (sync: false la deja vacía).
       - key: IA_API_KEY
         sync: false
@@ -41,12 +45,11 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
-      # La dirección de la API la pone Render sola, con el dominio del servicio.
+      # Dirección pública de la API, escrita completa por la misma razón que
+      # FRONTEND_URL. Vite la incrusta al compilar, así que si esta línea
+      # cambia hay que volver a publicar el Frontend.
       - key: VITE_API_URL
-        fromService:
-          name: simonc-api
-          type: web
-          property: host
+        value: https://simonc-api.onrender.com
     routes:
       - type: rewrite
         source: /*

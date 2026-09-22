@@ -24,6 +24,13 @@ describe('Dirección de la API en el despliegue', () => {
     expect(normalizarApiUrl(undefined, 'simonc-web.onrender.com')).toBe('https://simonc-api.onrender.com/api');
   });
 
+  it('descarta el nombre interno que entrega el hosting', () => {
+    // Render entrega "simonc-api" al enlazar dos servicios: no es una
+    // dirección de internet y el navegador no la puede resolver.
+    expect(normalizarApiUrl('simonc-api', 'simonc-web.onrender.com')).toBe('https://simonc-api.onrender.com/api');
+    expect(normalizarApiUrl('https://simonc-api', 'simonc-web.onrender.com')).toBe('https://simonc-api.onrender.com/api');
+  });
+
   it('lo configurado manda sobre la suposición', () => {
     expect(normalizarApiUrl('otra-api.onrender.com', 'simonc-web.onrender.com')).toBe('https://otra-api.onrender.com/api');
   });

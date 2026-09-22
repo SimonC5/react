@@ -18,9 +18,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 
 try:
-    from .core import get_db_connection, hash_password
+    from .core import dominio_publico, get_db_connection, hash_password
 except ImportError:
-    from core import get_db_connection, hash_password
+    from core import dominio_publico, get_db_connection, hash_password
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
 
@@ -70,7 +70,9 @@ def _huella(token: str) -> str:
 
 
 def _frontend_url() -> str:
-    return os.getenv('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+    # El enlace va a un correo: tiene que ser la dirección pública, no el
+    # nombre interno con el que se hablan los servicios del hosting.
+    return dominio_publico(os.getenv('FRONTEND_URL', '')) or 'http://localhost:5173'
 
 
 def _enviar_correo(destinatario: str, enlace: str) -> bool:

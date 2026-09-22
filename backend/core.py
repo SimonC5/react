@@ -18,6 +18,42 @@ import bcrypt
 from fastapi import Depends, HTTPException, Header, status
 from passlib.context import CryptContext
 
+def _sufijo_del_hosting() -> str:
+    """Dominio del hosting, deducido del nombre público de esta misma API.
+
+    Render publica en ``RENDER_EXTERNAL_HOSTNAME`` el dominio real del servicio
+    ("simonc-api.onrender.com"), así que de ahí sale el ".onrender.com" que le
+    falta a un nombre interno.
+    """
+    propio = os.getenv('RENDER_EXTERNAL_HOSTNAME', '') or os.getenv('RENDER_EXTERNAL_URL', '')
+    propio = propio.split('://')[-1].split('/')[0].strip()
+    punto = propio.find('.')
+    return propio[punto:] if punto > 0 else ''
+
+
+def dominio_publico(valor: str) -> str:
+    """Deja una dirección como la escribe el navegador: https://dominio.
+
+    Al enlazar dos servicios, Render entrega el **nombre interno** del otro
+    ("simonc-web"), que no es una dirección de internet: el navegador manda
+    "https://simonc-web.onrender.com" y nada coincide. El síntoma (todo falla
+    por CORS, o el enlace del correo no abre) no apunta a la causa, así que se
+    corrige aquí: se le pone el esquema, se le quita la barra final y, si le
+    falta el dominio del hosting, se le agrega.
+    """
+    direccion = str(valor or '').strip().rstrip('/')
+    if not direccion:
+        return ''
+    esquema, _, resto = direccion.partition('://')
+    if not resto:
+        esquema, resto = 'https', direccion
+    dominio, barra, ruta = resto.partition('/')
+    nombre, dos_puntos, puerto = dominio.partition(':')
+    if '.' not in nombre and nombre.lower() != 'localhost':
+        dominio = f'{nombre}{_sufijo_del_hosting()}{dos_puntos}{puerto}'
+    return f'{esquema}://{dominio}{barra}{ruta}'
+
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'data'
 DB_PATH = DATA_DIR / 'simonsc.db'

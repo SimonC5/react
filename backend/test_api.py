@@ -156,6 +156,30 @@ def test_chatbot_responde_y_guarda_la_conversacion(client, admin):
     assert len(mensajes) == 4
 
 
+def test_el_nombre_interno_del_hosting_se_vuelve_dominio_publico(monkeypatch):
+    """Al enlazar servicios, Render entrega "simonc-web", no el dominio real."""
+    import core
+
+    monkeypatch.setenv('RENDER_EXTERNAL_HOSTNAME', 'simonc-api.onrender.com')
+
+    assert core.dominio_publico('simonc-web') == 'https://simonc-web.onrender.com'
+    assert core.dominio_publico('https://simonc-web/') == 'https://simonc-web.onrender.com'
+    # Un dominio completo no se toca, y tampoco el backend de casa.
+    assert core.dominio_publico('https://simonc-web.onrender.com/') == 'https://simonc-web.onrender.com'
+    assert core.dominio_publico('http://localhost:5173') == 'http://localhost:5173'
+    assert core.dominio_publico('') == ''
+
+
+def test_sin_hosting_conocido_el_nombre_interno_se_deja_igual(monkeypatch):
+    """Fuera de Render no hay sufijo que agregar: no hay que inventarse uno."""
+    import core
+
+    monkeypatch.delenv('RENDER_EXTERNAL_HOSTNAME', raising=False)
+    monkeypatch.delenv('RENDER_EXTERNAL_URL', raising=False)
+
+    assert core.dominio_publico('simonc-web') == 'https://simonc-web'
+
+
 def test_el_chatbot_explica_el_error_del_proveedor(monkeypatch):
     """Un 404 a secas no dice nada: hay que reenviar el motivo, sin la clave."""
     import io
