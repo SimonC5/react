@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import logo from '../assets/logo.svg';
 import Button from './Button';
 import Input from './Input';
+import PasswordTips from './PasswordTips';
 import Select from './Select';
 import { authApi } from '../services/api';
 
@@ -147,7 +148,7 @@ function RegisterModal({ isOpen, onClose, onRegistered }) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <Select id="register-documentType" name="documentType" label="Tipo de documento" value={form.documentType} onChange={handleChange} options={documentTypes} error={errors.documentType} />
-            <Input id="register-documentNumber" name="documentNumber" label="Número de documento" value={form.documentNumber} onChange={handleChange} error={errors.documentNumber} placeholder="12345678" maxLength={12} inputMode="numeric" />
+            <Input id="register-documentNumber" name="documentNumber" label="Número de documento" value={form.documentNumber} onChange={handleChange} error={errors.documentNumber} placeholder="12345678" maxLength={12} inputMode="numeric" hint="Solo números, entre 6 y 12 dígitos. Sin puntos, espacios ni letras." />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -157,10 +158,12 @@ function RegisterModal({ isOpen, onClose, onRegistered }) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <Input id="register-email" name="email" label="Correo electrónico" type="email" value={form.email} onChange={handleChange} error={errors.email} placeholder="nombre@correo.com" maxLength={120} />
-            <Input id="register-password" name="password" label="Contraseña" type="password" value={form.password} onChange={handleChange} error={errors.password} placeholder="Mínimo 8 caracteres" maxLength={100} />
+            <Input id="register-password" name="password" label="Contraseña" type="password" value={form.password} onChange={handleChange} error={errors.password} placeholder="Mínimo 8 caracteres" maxLength={100} hint="Obligatorio: mínimo 8 caracteres, con letras y números." />
           </div>
 
-          <Input id="register-confirmPassword" name="confirmPassword" label="Confirmación de contraseña" type="password" value={form.confirmPassword} onChange={handleChange} error={errors.confirmPassword} placeholder="Repite tu contraseña" maxLength={100} />
+          <Input id="register-confirmPassword" name="confirmPassword" label="Confirmación de contraseña" type="password" value={form.confirmPassword} onChange={handleChange} error={errors.confirmPassword} placeholder="Repite tu contraseña" maxLength={100} hint="Escribe exactamente la misma contraseña de arriba." />
+
+          <PasswordTips password={form.password} />
 
           {successMessage && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">

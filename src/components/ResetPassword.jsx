@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 import Button from './Button';
 import Input from './Input';
+import PasswordTips from './PasswordTips';
 import { authApi } from '../services/api';
 
 function ResetPassword() {
@@ -63,6 +64,7 @@ function ResetPassword() {
             onChange={(event) => setPassword(event.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            hint="Obligatorio: mínimo 8 caracteres, con letras y números."
           />
           <Input
             id="reset-confirmation"
@@ -72,7 +74,10 @@ function ResetPassword() {
             onChange={(event) => setConfirmation(event.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
+            hint="Escribe exactamente la misma contraseña de arriba."
           />
+
+          <PasswordTips password={password} />
 
           {error && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           {success && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{success}</p>}
