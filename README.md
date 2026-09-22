@@ -159,7 +159,9 @@ está en `backend/schema.sql`. En desarrollo la API usa SQLite y crea todo autom
 El proyecto trae la configuración lista para dos plataformas gratuitas:
 
 - **Render** (`render.yaml`): un solo repositorio, dos servicios (la API en Python y
-  el Frontend estático). Es el camino recomendado.
+  el Frontend estático), **ya enlazados entre sí**: Render inyecta el dominio de
+  cada servicio en el otro, así que no hay que copiar URLs a mano. Es el camino
+  recomendado.
 - **Railway** (`railway.json`, `backend/Procfile`): para el Backend, con
   `uvicorn main:app --host 0.0.0.0 --port $PORT`.
 
@@ -174,3 +176,8 @@ Pasos:
    hosting, nunca en el repositorio.
 2. Publica el Frontend con `VITE_API_URL` apuntando a la URL pública de la API.
 3. Verifica el flujo completo en producción y adjunta la URL pública como evidencia.
+
+`VITE_API_URL` y los orígenes de CORS se normalizan, así que sirven tal como se
+copian del panel del hosting: con o sin `https://`, con o sin `/api` y con o sin
+barra al final. Es el error más fácil de cometer y el que menos se diagnostica,
+porque el síntoma es que todo falla sin explicación.

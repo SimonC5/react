@@ -1,0 +1,24 @@
+import { describe, expect, it } from 'vitest';
+import { normalizarApiUrl } from './api';
+
+describe('Dirección de la API en el despliegue', () => {
+  it('acepta el dominio como lo copia uno del panel del hosting', () => {
+    const esperado = 'https://simonc-api.onrender.com/api';
+    expect(normalizarApiUrl('simonc-api.onrender.com')).toBe(esperado);
+    expect(normalizarApiUrl('https://simonc-api.onrender.com')).toBe(esperado);
+    expect(normalizarApiUrl('https://simonc-api.onrender.com/')).toBe(esperado);
+    expect(normalizarApiUrl('https://simonc-api.onrender.com/api')).toBe(esperado);
+    expect(normalizarApiUrl('https://simonc-api.onrender.com/api/')).toBe(esperado);
+    expect(normalizarApiUrl('  simonc-api.onrender.com/api  ')).toBe(esperado);
+  });
+
+  it('sin configurar apunta al backend local', () => {
+    expect(normalizarApiUrl(undefined)).toBe('http://localhost:8000/api');
+    expect(normalizarApiUrl('')).toBe('http://localhost:8000/api');
+  });
+
+  it('no fuerza https cuando es el backend local', () => {
+    expect(normalizarApiUrl('localhost:8000')).toBe('http://localhost:8000/api');
+    expect(normalizarApiUrl('127.0.0.1:8000/api')).toBe('http://127.0.0.1:8000/api');
+  });
+});

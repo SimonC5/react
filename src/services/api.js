@@ -1,4 +1,22 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+/**
+ * Normaliza VITE_API_URL para el despliegue.
+ *
+ * En el panel del hosting lo normal es copiar el dominio tal cual
+ * ("simonc-api.onrender.com") o con barra al final, y entonces todas las
+ * peticiones fallan sin decir por qué. Se aceptan las tres formas: con o sin
+ * "https://", con o sin "/api" y con o sin barra final.
+ */
+export function normalizarApiUrl(valor) {
+  let url = String(valor ?? '').trim().replace(/\/+$/, '');
+  if (!url) return 'http://localhost:8000/api';
+  if (!/^https?:\/\//i.test(url)) {
+    const esLocal = /^(localhost|127\.0\.0\.1)(:|$)/i.test(url);
+    url = `${esLocal ? 'http' : 'https'}://${url}`;
+  }
+  return /\/api$/i.test(url) ? url : `${url}/api`;
+}
+
+const API_URL = normalizarApiUrl(import.meta.env.VITE_API_URL);
 
 const TOKEN_KEY = 'simonsc_token';
 

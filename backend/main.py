@@ -53,12 +53,32 @@ DEFAULT_ORIGINS = [
     'http://localhost:5175', 'http://127.0.0.1:5175',
     'http://localhost:5176', 'http://127.0.0.1:5176',
 ]
+
+def _origen_normalizado(valor: str) -> str:
+    """Deja un origen de CORS como lo manda el navegador.
+
+    El navegador envía exactamente "https://dominio", sin barra final, así que
+    un valor con "/" al final o sin el "https://" no coincide nunca. Eso es justo
+    lo que queda al copiar la URL del panel del hosting, y el síntoma (todo
+    falla por CORS) no apunta a la causa, así que se corrige aquí.
+    """
+    origen = valor.strip().rstrip('/')
+    if not origen:
+        return ''
+    if '://' not in origen:
+        origen = f'https://{origen}'
+    return origen
+
+
 # En producción el dominio del Frontend se configura con FRONTEND_URL / CORS_ORIGINS.
-EXTRA_ORIGINS = [
-    origen.strip()
-    for origen in f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
-    if origen.strip()
-]
+EXTRA_ORIGINS = list(dict.fromkeys(
+    origen
+    for origen in (
+        _origen_normalizado(valor)
+        for valor in f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
+    )
+    if origen
+))
 
 app = FastAPI(title='SimonC API', version='2.0.0')
 app.add_middleware(
