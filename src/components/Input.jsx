@@ -13,11 +13,8 @@ function Input({ label, id, error, hint, className = '', ...props }) {
         } ${className}`}
         {...props}
       />
-      {/* La ayuda propia del campo reemplaza al "Máximo N caracteres" genérico:
-          dice lo mismo y algo más, y dos líneas seguidas se leen como ruido. */}
-      {hint
-        ? <p className="text-xs text-slate-600">{hint}</p>
-        : props.maxLength && <p className="text-xs text-slate-500">Máximo {props.maxLength} caracteres.</p>}
+      {props.maxLength && <p className="text-xs text-slate-500">Máximo {props.maxLength} caracteres.</p>}
+      {hint && <p className="text-xs text-slate-600">{hint}</p>}
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
     </div>
   );
