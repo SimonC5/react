@@ -1,0 +1,36 @@
+# Despliegue en Render (https://render.com). Al conectar el repositorio, Render
+# lee este archivo y crea los dos servicios. Las claves reales (IA_API_KEY,
+# JWT_SECRET) se escriben en el panel de Render, nunca en el repositorio.
+services:
+  - type: web
+    name: simonc-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: IA_API_KEY
+        sync: false
+      - key: IA_API_URL
+        value: https://api.openai.com/v1/chat/completions
+      - key: IA_MODEL
+        value: gpt-4o-mini
+
+  - type: web
+    name: simonc-web
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

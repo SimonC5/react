@@ -156,10 +156,21 @@ está en `backend/schema.sql`. En desarrollo la API usa SQLite y crea todo autom
 
 ## Despliegue
 
-`railway.json` y `backend/Procfile` dejan el Backend listo para Railway con
-`uvicorn main:app --host 0.0.0.0 --port $PORT`. Pasos:
+El proyecto trae la configuración lista para dos plataformas gratuitas:
 
-1. Publica el Backend y define allí `JWT_SECRET`, `IA_API_KEY`, `FRONTEND_URL` y `CORS_ORIGINS`.
-2. Publica el Frontend (`npm run build`, carpeta `dist/`) con `VITE_API_URL` apuntando a la URL
-   pública de la API.
+- **Render** (`render.yaml`): un solo repositorio, dos servicios (la API en Python y
+  el Frontend estático). Es el camino recomendado.
+- **Railway** (`railway.json`, `backend/Procfile`): para el Backend, con
+  `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+
+El Frontend es una SPA, así que necesita reenviar cualquier ruta a `index.html`.
+Eso ya está resuelto: `public/_redirects` (Netlify/Render estático) y `vercel.json`
+(Vercel). Sin esto, recargar en `/panel/admin` daría 404.
+
+Pasos:
+
+1. Publica el Backend y define allí `JWT_SECRET`, `IA_API_KEY`, `FRONTEND_URL` y
+   `CORS_ORIGINS`. La clave de IA se escribe solo en el panel del proveedor de
+   hosting, nunca en el repositorio.
+2. Publica el Frontend con `VITE_API_URL` apuntando a la URL pública de la API.
 3. Verifica el flujo completo en producción y adjunta la URL pública como evidencia.
