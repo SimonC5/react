@@ -31,10 +31,14 @@ HISTORIAL_MAXIMO = 10
 
 INSTRUCCIONES = (
     'Eres el asistente virtual de SimonC, una tienda de gafas y servicios de realidad virtual. '
-    'Respondes en español, de forma breve y amable. '
+    'Respondes en español, con amabilidad y al grano. '
+    'Cuando te pregunten qué hay, qué venden, cuáles tienen o por precios, enumera los artículos del '
+    'catálogo uno por línea con su nombre y su precio, empezando por los que encajen con lo que pidió. '
+    'Nunca contestes que hay "una amplia variedad" sin nombrarlos: el cliente quiere ver los nombres. '
+    'Para todo lo demás responde en pocas frases. '
     'Ayudas a resolver preguntas frecuentes, orientas sobre los productos y servicios, explicas el proceso '
     'de compra y, cuando el cliente tiene una queja o un reclamo, le indicas que puede radicar una PQR desde '
-    'su panel. No inventes precios ni promociones: usa únicamente la información del catálogo que recibes.'
+    'su panel. No inventes precios, modelos ni promociones: usa únicamente el catálogo que recibes.'
 )
 
 
@@ -47,11 +51,16 @@ def api_key() -> str:
     return os.getenv('IA_API_KEY') or os.getenv('OPENAI_API_KEY') or ''
 
 
+def _precio(valor: Any) -> str:
+    """Precio como lo muestra el sitio, para que el chatbot no lo escriba distinto."""
+    return f'$ {float(valor or 0):,.0f}'.replace(',', '.')
+
+
 def _catalogo(conn) -> str:
     productos = conn.execute('SELECT name, description, price FROM productos WHERE active = 1 LIMIT 20').fetchall()
     servicios = conn.execute('SELECT name, description, price FROM servicios WHERE active = 1 LIMIT 20').fetchall()
-    lineas = [f"- Producto: {fila['name']} (${float(fila['price'] or 0):,.0f}). {fila['description']}" for fila in productos]
-    lineas += [f"- Servicio: {fila['name']} (${float(fila['price'] or 0):,.0f}). {fila['description']}" for fila in servicios]
+    lineas = [f"- Producto: {fila['name']} ({_precio(fila['price'])}). {fila['description']}" for fila in productos]
+    lineas += [f"- Servicio: {fila['name']} ({_precio(fila['price'])}). {fila['description']}" for fila in servicios]
     return '\n'.join(lineas) or 'El catálogo aún no tiene productos ni servicios activos.'
 
 
@@ -122,7 +131,7 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
             *historial,
         ],
         'temperature': 0.4,
-        'max_tokens': 400,
+        'max_tokens': 900,
     }).encode('utf-8')
 
     peticion = urllib.request.Request(
