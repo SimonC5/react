@@ -9,13 +9,20 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 try:
-    from .core import get_current_user, get_db_connection, usa_mysql
+    from .core import get_current_user, get_db_connection, require_roles, usa_mysql
     from .comercial import ESTADOS_PQR, ESTADOS_VENTA, money, parse_date
 except ImportError:
-    from core import get_current_user, get_db_connection, usa_mysql
+    from core import get_current_user, get_db_connection, require_roles, usa_mysql
     from comercial import ESTADOS_PQR, ESTADOS_VENTA, money, parse_date
 
-router = APIRouter(prefix='/api/dashboard', tags=['dashboard'])
+# El dashboard es solo del Administrador: ni el Empleado ni el Cliente lo ven.
+# Se cierra aquí y no solo en el menú del panel, porque esconder un botón no
+# impide pedir la ruta a mano.
+router = APIRouter(
+    prefix='/api/dashboard',
+    tags=['dashboard'],
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 
 # Agrupar por periodo es lo único que cambia de verdad entre los dos motores.
 # Las variantes de MySQL evitan el '%' a propósito: la consulta lleva

@@ -347,18 +347,23 @@ function DashboardPage({ role }) {
   // Administrador y empleado operan; el cliente solo consulta lo suyo.
   const gestionaComercial = esAdministrador || role === 'Empleado';
 
-  // Cada entrada del menú muestra su sección y esconde las demás. El cliente
-  // no tiene dashboard, así que esa entrada no existe para él.
+  // Cada entrada del menú muestra su sección y esconde las demás. El dashboard
+  // es solo del administrador, y el cliente no lleva el catálogo dentro del
+  // panel: para ver qué se vende está la tienda pública.
   const secciones = useMemo(
     () => [
-      ...(esCliente ? [] : [{ clave: 'dashboard', label: 'Dashboard', icon: <IconChart /> }]),
+      ...(esAdministrador ? [{ clave: 'dashboard', label: 'Dashboard', icon: <IconChart /> }] : []),
       { clave: 'ventas', label: esCliente ? 'Mis compras' : 'Ventas', icon: <IconSale /> },
       { clave: 'facturas', label: esCliente ? 'Mis facturas' : 'Facturación', icon: <IconInvoice /> },
       ...(gestionaComercial ? [{ clave: 'reportes', label: 'Reportes', icon: <IconReport /> }] : []),
       { clave: 'pqr', label: 'PQR', icon: <IconSupport /> },
       ...(esAdministrador ? [{ clave: 'usuarios', label: 'Usuarios', icon: <IconUsers /> }] : []),
-      { clave: 'productos', label: esCliente ? 'Catálogo' : 'Productos', icon: <IconPackage /> },
-      { clave: 'servicios', label: 'Servicios', icon: <IconService /> },
+      ...(esCliente
+        ? []
+        : [
+            { clave: 'productos', label: 'Productos', icon: <IconPackage /> },
+            { clave: 'servicios', label: 'Servicios', icon: <IconService /> },
+          ]),
     ],
     [esAdministrador, esCliente, gestionaComercial],
   );
@@ -537,7 +542,7 @@ function DashboardPage({ role }) {
             </div>
           )}
 
-          {seccion === 'dashboard' && !esCliente && <AnalyticsModule rol={role} />}
+          {seccion === 'dashboard' && esAdministrador && <AnalyticsModule rol={role} />}
 
           {seccion === 'ventas' && (
             <SalesModule puedeRegistrar={gestionaComercial} titulo={esCliente ? 'Mis compras' : 'Ventas'} />
@@ -554,23 +559,15 @@ function DashboardPage({ role }) {
 
           {seccion === 'pqr' && <PqrModule puedeGestionar={gestionaComercial} />}
 
-          {seccion === 'productos' && (
+          {seccion === 'productos' && !esCliente && (
             <div id="productos-panel">
-              <ResourceManager
-                resource="products"
-                title={esCliente ? 'Catálogo de productos' : 'Productos'}
-                puedeEditar={esAdministrador}
-              />
+              <ResourceManager resource="products" title="Productos" puedeEditar={esAdministrador} />
             </div>
           )}
 
-          {seccion === 'servicios' && (
+          {seccion === 'servicios' && !esCliente && (
             <div id="servicios-panel">
-              <ResourceManager
-                resource="services"
-                title={esCliente ? 'Catálogo de servicios' : 'Servicios'}
-                puedeEditar={gestionaComercial}
-              />
+              <ResourceManager resource="services" title="Servicios" puedeEditar={gestionaComercial} />
             </div>
           )}
         </div>

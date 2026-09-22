@@ -352,10 +352,8 @@ def test_el_chatbot_no_expone_la_api_key(client, admin):
     assert 'sk-' not in cuerpo
 
 
-def test_el_cliente_no_ve_las_pqr_de_otros_en_su_dashboard(client, admin):
-    client.post('/api/pqr', headers=admin, json={
-        'tipo': 'Queja', 'asunto': 'Solicitud del administrador', 'descripcion': 'No debe verla el cliente.',
-    })
+def test_el_dashboard_es_solo_del_administrador(client, admin):
+    """Esconder el botón no basta: la ruta también tiene que estar cerrada."""
     client.post('/api/auth/register', json={
         'name': 'Otro', 'lastName': 'Cliente', 'documentType': 'CC', 'documentNumber': '8888888888',
         'address': 'Calle 2', 'phone': '3009998877', 'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
@@ -364,9 +362,15 @@ def test_el_cliente_no_ve_las_pqr_de_otros_en_su_dashboard(client, admin):
         'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
     }).json()['token']
     cliente = {'Authorization': f'Bearer {token}'}
+    token_empleado = client.post('/api/auth/login', json={
+        'email': 'empleado@simonsc.com', 'password': 'Empleado1234',
+    }).json()['token']
+    empleado = {'Authorization': f'Bearer {token_empleado}'}
 
-    resumen = client.get('/api/dashboard/resumen', headers=cliente).json()
-    assert sum(fila['valor'] for fila in resumen['pqrPorEstado']) == 0
+    for ruta in ('/api/dashboard/resumen', '/api/dashboard/ventas', '/api/dashboard/filtros'):
+        assert client.get(ruta, headers=cliente).status_code == 403, ruta
+        assert client.get(ruta, headers=empleado).status_code == 403, ruta
+        assert client.get(ruta, headers=admin).status_code == 200, ruta
 
 
 def test_permisos_por_rol(client, admin):
@@ -382,7 +386,7 @@ def test_permisos_por_rol(client, admin):
     assert client.post('/api/ventas', headers=cliente, json={'cliente': 'x', 'items': []}).status_code == 403
     assert client.get('/api/reportes/ventas/diario', headers=cliente).status_code == 403
     assert client.get('/api/ventas', headers=cliente).json()['resumen']['cantidad'] == 0
-    assert client.get('/api/dashboard/resumen', headers=cliente).status_code == 200
+    assert client.get('/api/dashboard/resumen', headers=cliente).status_code == 403
     assert client.get('/api/ventas').status_code == 401
 
 
