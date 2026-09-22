@@ -28,9 +28,11 @@ services:
       - key: IA_API_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
       # Varios modelos separados por coma: si el primero está saturado (el plan
-      # gratuito devuelve 503), se intenta con el siguiente.
+      # gratuito devuelve 503), se intenta con el siguiente. Van primero los
+      # más livianos, que contestan rápido; los que razonan antes de escribir
+      # quedan de reserva porque a veces se pasan del tiempo de espera.
       - key: IA_MODEL
-        value: gemini-flash-latest,gemini-2.5-flash,gemini-2.0-flash,gemini-flash-lite-latest
+        value: gemini-2.0-flash,gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash
 
   # Frontend Vite. Cualquier ruta se reenvía a index.html porque es una SPA.
   - type: web

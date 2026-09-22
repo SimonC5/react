@@ -33,10 +33,13 @@ IA_API_URL = os.getenv('IA_API_URL', 'https://api.openai.com/v1/chat/completions
 # problema. Con un solo modelo escrito, la lista tiene un solo elemento.
 IA_MODELOS = [modelo.strip() for modelo in os.getenv('IA_MODEL', 'gpt-4o-mini').split(',') if modelo.strip()]
 IA_MODEL = IA_MODELOS[0] if IA_MODELOS else 'gpt-4o-mini'
-IA_TIMEOUT = float(os.getenv('IA_TIMEOUT', '20'))
+# Un modelo cargado puede tardar bastante en escribir la primera palabra, y
+# cortarle a los 20 segundos dejaba la pregunta sin responder sin que hiciera
+# falta.
+IA_TIMEOUT = float(os.getenv('IA_TIMEOUT', '30'))
 # Segundos que se pueden gastar en total probando modelos, para no dejar al
 # cliente esperando mientras se recorre la lista entera.
-IA_PRESUPUESTO = float(os.getenv('IA_PRESUPUESTO', '35'))
+IA_PRESUPUESTO = float(os.getenv('IA_PRESUPUESTO', '55'))
 # Errores que valen la pena reintentar con otro modelo: saturación, cupo por
 # minuto, caídas pasajeras del proveedor y modelos que esa clave no tiene.
 CODIGOS_REINTENTABLES = {404, 408, 429, 500, 502, 503, 504}
@@ -78,24 +81,54 @@ def _catalogo(conn) -> str:
 
 
 def _respuesta_local(mensaje: str, catalogo: str) -> str:
-    """Respuesta de respaldo cuando no hay API Key configurada."""
+    """Respuesta de respaldo cuando la IA no está disponible.
+
+    No pretende contestar cualquier cosa como lo haría el modelo: lo que hace es
+    reconocer los temas por los que de verdad pregunta un cliente de la tienda y
+    responder con lo que el sistema sí sabe, para que nadie se quede sin nada.
+    """
     texto = mensaje.lower()
-    if any(palabra in texto for palabra in ('precio', 'cuánto', 'cuanto', 'costo', 'valor', 'tarifa')):
+
+    def menciona(*palabras: str) -> bool:
+        return any(palabra in texto for palabra in palabras)
+
+    if menciona('precio', 'cuánto', 'cuanto', 'costo', 'cuesta', 'valor', 'tarifa', 'vale'):
         return f'Estos son los precios vigentes de nuestro catálogo:\n{catalogo}'
-    if any(palabra in texto for palabra in ('queja', 'reclamo', 'pqr', 'problema', 'demora')):
+    if menciona('queja', 'reclamo', 'pqr', 'petición', 'peticion', 'problema', 'demora', 'falla', 'dañad'):
         return (
             'Lamento el inconveniente. Puedes radicar una PQR desde tu panel, en la sección "PQR": '
-            'registra el tipo, el asunto y la descripción, y podrás consultar el estado con el número de radicado.'
+            'registra el tipo, el asunto y la descripción, y luego consultas el estado con el número de radicado.'
         )
-    if any(palabra in texto for palabra in ('comprar', 'compra', 'pedido', 'contratar', 'cotizar')):
+    if menciona('garant', 'devol', 'cambio', 'repar'):
         return (
-            'Para iniciar una compra elige el producto o servicio que te interese y un asesor registra la venta; '
-            'después recibirás la factura en PDF desde la sección de facturas.'
+            'Todos los visores se venden con garantía, y en el catálogo tenemos el servicio de garantía '
+            'extendida si quieres ampliarla. Para un caso puntual radica una PQR desde tu panel y le hacemos '
+            'seguimiento con número de radicado.'
         )
-    if any(palabra in texto for palabra in ('factura', 'facturas', 'descargar')):
-        return 'Puedes consultar y descargar tus facturas en PDF desde el panel, en la sección "Facturación".'
-    if any(palabra in texto for palabra in ('hola', 'buenas', 'buenos días', 'buenas tardes')):
-        return '¡Hola! Soy el asistente de SimonC. Puedo orientarte sobre productos, servicios, facturas y PQR.'
+    if menciona('carrito', 'compr', 'pedido', 'contratar', 'cotiz', 'adquir'):
+        return (
+            'Puedes comprar tú mismo: agrega lo que quieras al carrito desde el catálogo, inicia sesión y '
+            'confirma el pedido. La factura se emite sola y te queda en la sección "Mis facturas".'
+        )
+    if menciona('factura', 'facturas', 'descargar', 'recibo', 'pdf'):
+        return 'Puedes consultar y descargar tus facturas en PDF desde el panel, en la sección "Mis facturas".'
+    if menciona('instal', 'configur', 'capacit', 'soporte', 'servicio'):
+        return f'Además de los visores ofrecemos servicios de instalación, capacitación y soporte:\n{catalogo}'
+    if menciona('recomien', 'recomend', 'cuál me', 'cual me', 'mejor', 'sirve para', 'para jugar', 'para empresa'):
+        return (
+            'Con gusto. Estos son los visores y servicios que tenemos, con su descripción y su precio, para '
+            f'que compares:\n{catalogo}'
+        )
+    if menciona('contacto', 'teléfono', 'telefono', 'correo', 'horario', 'ubicad', 'dirección', 'direccion'):
+        return (
+            'En la página de Contacto están nuestros datos y el formulario para escribirnos. Si tu caso es un '
+            'reclamo, radícalo como PQR desde tu panel para hacerle seguimiento.'
+        )
+    if menciona('hola', 'buenas', 'buenos días', 'buenos dias', 'buenas tardes', 'qué tal', 'que tal'):
+        return (
+            '¡Hola! Soy el asistente de SimonC. Puedo orientarte sobre los visores de realidad virtual, '
+            'nuestros servicios, los precios, tus facturas y las PQR.'
+        )
     return (
         'Con gusto te ayudo. Estos son los productos y servicios que ofrecemos:\n'
         f'{catalogo}\n'
@@ -153,9 +186,10 @@ def _pedir_al_modelo(modelo: str, historial: list[dict[str, str]], catalogo: str
             *historial,
         ],
         'temperature': 0.4,
-        # Holgado a propósito: algunos modelos gastan parte del cupo en razonar
-        # antes de escribir, y si se queda corto devuelven la respuesta vacía.
-        'max_tokens': 2000,
+        # Alcanza de sobra para la respuesta más larga que da el asistente, que
+        # es enumerar el catálogo entero. Subirlo más solo le da cuerda a los
+        # modelos que razonan antes de escribir, y entonces tardan de más.
+        'max_tokens': 1200,
     }).encode('utf-8')
 
     peticion = urllib.request.Request(
@@ -168,25 +202,20 @@ def _pedir_al_modelo(modelo: str, historial: list[dict[str, str]], catalogo: str
         with urllib.request.urlopen(peticion, timeout=IA_TIMEOUT) as respuesta:
             datos = json.loads(respuesta.read().decode('utf-8'))
     except urllib.error.HTTPError as exc:
-        motivo = f'El servicio de Inteligencia Artificial respondió con error {exc.code}.'
-        detalle = _motivo_del_proveedor(exc)
         raise FalloDeIA(
-            f'{motivo} {detalle}'.strip(),
+            f'error {exc.code}. {_motivo_del_proveedor(exc)}'.strip(),
             reintentable=exc.code in CODIGOS_REINTENTABLES,
         ) from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise FalloDeIA(
-            'No fue posible contactar el servicio de Inteligencia Artificial.',
+            f'no contestó a tiempo ({IA_TIMEOUT:.0f} s) o no se pudo contactar.',
             reintentable=True,
         ) from exc
 
     opciones = datos.get('choices') or []
     contenido = (opciones[0].get('message', {}).get('content') if opciones else '') or ''
     if not contenido.strip():
-        raise FalloDeIA(
-            'El servicio de Inteligencia Artificial no devolvió respuesta.',
-            reintentable=True,
-        )
+        raise FalloDeIA('devolvió una respuesta vacía.', reintentable=True)
     return contenido.strip()
 
 
@@ -199,19 +228,27 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     de la petición, no tiene sentido insistir y se corta de una vez.
     """
     inicio = time.monotonic()
-    ultimo = 'No hay ningún modelo de Inteligencia Artificial configurado.'
+    intentos: list[str] = []
 
     for indice, modelo in enumerate(IA_MODELOS):
         if indice and time.monotonic() - inicio > IA_PRESUPUESTO:
+            intentos.append('se acabó el tiempo antes de probar los demás')
             break
         try:
             return _pedir_al_modelo(modelo, historial, catalogo)
         except FalloDeIA as fallo:
-            ultimo = fallo.motivo
+            intentos.append(f'{modelo}: {fallo.motivo}')
             if not fallo.reintentable:
                 break
 
-    raise HTTPException(status_code=502, detail=ultimo)
+    if not intentos:
+        raise HTTPException(status_code=502, detail='No hay ningún modelo de Inteligencia Artificial configurado.')
+    # El aviso enumera todos los intentos: con un solo motivo no se distingue
+    # un modelo saturado de uno que tarda de más, y son problemas distintos.
+    raise HTTPException(
+        status_code=502,
+        detail='La IA no pudo responder. Intentos: ' + ' · '.join(intentos),
+    )
 
 
 @router.get('/estado')

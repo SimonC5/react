@@ -19,6 +19,7 @@ function Chatbot() {
   const [texto, setTexto] = useState('');
   const [conversacionId, setConversacionId] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const [demorado, setDemorado] = useState(false);
   const [error, setError] = useState('');
   // Motivo por el que la IA no pudo responder. El cliente igual recibe la
   // respuesta del catálogo, así que a él no se le muestra el detalle técnico:
@@ -29,6 +30,18 @@ function Chatbot() {
   useEffect(() => {
     if (abierto) finRef.current?.scrollIntoView?.({ behavior: 'smooth' });
   }, [mensajes, abierto]);
+
+  // El servicio de IA a veces tarda, sobre todo en el plan gratuito del
+  // hosting. Pasados unos segundos se cambia el mensaje de espera, para que no
+  // parezca que el chat se quedó congelado.
+  useEffect(() => {
+    if (!enviando) {
+      setDemorado(false);
+      return undefined;
+    }
+    const temporizador = setTimeout(() => setDemorado(true), 8000);
+    return () => clearTimeout(temporizador);
+  }, [enviando]);
 
   if (!user) return null;
 
@@ -84,7 +97,11 @@ function Chatbot() {
                 {mensaje.contenido}
               </p>
             ))}
-            {enviando && <p className="text-xs text-slate-500">El asistente está escribiendo...</p>}
+            {enviando && (
+              <p className="text-xs text-slate-500">
+                {demorado ? 'Sigo buscando la respuesta, dame un momento...' : 'El asistente está escribiendo...'}
+              </p>
+            )}
             {error && <p className="text-xs text-red-300">{error}</p>}
             {aviso && user.role !== 'Cliente' && <p className="text-xs text-amber-300">{aviso}</p>}
             <div ref={finRef} />

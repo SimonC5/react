@@ -202,6 +202,49 @@ def test_el_chatbot_cambia_de_modelo_cuando_el_primero_esta_saturado(monkeypatch
     assert intentados == ['saturado', 'de-reserva']
 
 
+def test_el_aviso_dice_que_paso_con_cada_modelo(monkeypatch):
+    """Un solo motivo no distingue un modelo saturado de uno que tarda de más."""
+    import chatbot
+
+    motivos = {
+        'saturado': 'error 503. Dice: This model is currently experiencing high demand.',
+        'lento': 'no contestó a tiempo (30 s) o no se pudo contactar.',
+    }
+
+    def responder(modelo, historial, catalogo):
+        raise chatbot.FalloDeIA(motivos[modelo], reintentable=True)
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['saturado', 'lento'])
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    with pytest.raises(HTTPException) as fallo:
+        chatbot._consultar_ia([], 'catálogo')
+
+    detalle = fallo.value.detail
+    assert 'saturado: error 503' in detalle
+    assert 'lento: no contestó a tiempo' in detalle
+
+
+def test_el_respaldo_reconoce_los_temas_de_la_tienda():
+    """Sin IA, el asistente igual tiene que responder lo que la tienda sí sabe."""
+    import chatbot
+
+    catalogo = '- Producto: SimonC Vision One ($ 2.950.000). Visor de entrada.'
+    casos = {
+        '¿cómo compro unas gafas?': 'carrito',
+        '¿dan garantía?': 'garantía',
+        '¿me instalan el equipo?': 'instalación',
+        '¿dónde veo mis facturas?': 'Mis facturas',
+        'quiero poner una queja': 'PQR',
+        '¿cuál es el horario?': 'Contacto',
+    }
+    for pregunta, esperado in casos.items():
+        assert esperado in chatbot._respuesta_local(pregunta, catalogo), pregunta
+
+    # Lo que no reconoce no se queda sin respuesta: muestra el catálogo.
+    assert 'SimonC Vision One' in chatbot._respuesta_local('¿el universo es infinito?', catalogo)
+
+
 def test_el_chatbot_no_insiste_si_la_clave_esta_mala(monkeypatch):
     """Un 400 por clave inválida no se arregla probando otro modelo."""
     import chatbot
