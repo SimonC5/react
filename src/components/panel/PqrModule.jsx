@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import Modal from '../Modal';
 import { pqrApi } from '../../services/api';
 import { fechaCorta } from '../../utils/formato';
 
@@ -15,6 +16,7 @@ function PqrModule({ puedeGestionar }) {
   const [filtroEstado, setFiltroEstado] = useState('');
   const [solicitudes, setSolicitudes] = useState([]);
   const [respuestas, setRespuestas] = useState({});
+  const [radicacionAbierta, setRadicacionAbierta] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
@@ -41,6 +43,7 @@ function PqrModule({ puedeGestionar }) {
       setMensaje(data.message);
       setError('');
       setSolicitud(solicitudVacia);
+      setRadicacionAbierta(false);
       await cargar(filtroEstado);
     } catch (requestError) {
       setError(requestError.message);
@@ -66,9 +69,21 @@ function PqrModule({ puedeGestionar }) {
       {mensaje && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-200">{mensaje}</p>}
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
 
-      <form onSubmit={radicar} className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-        <h3 className="font-semibold text-white">Radicar una solicitud</h3>
+      <button
+        type="button"
+        className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+        onClick={() => setRadicacionAbierta(true)}
+      >
+        Radicar una solicitud
+      </button>
 
+      <Modal
+        isOpen={radicacionAbierta}
+        onClose={() => setRadicacionAbierta(false)}
+        title="Radicar una solicitud"
+        subtitle="Cuéntanos qué necesitas y le haremos seguimiento por estado."
+      >
+        <form onSubmit={radicar} className="space-y-3">
         <div className="grid gap-3 md:grid-cols-3">
           <label className="text-sm text-slate-300">
             Tipo
@@ -103,10 +118,20 @@ function PqrModule({ puedeGestionar }) {
           />
         </label>
 
-        <button type="submit" className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">
-          Radicar solicitud
-        </button>
-      </form>
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
+            onClick={() => setRadicacionAbierta(false)}
+          >
+            Cancelar
+          </button>
+          <button type="submit" className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">
+            Radicar solicitud
+          </button>
+        </div>
+        </form>
+      </Modal>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm text-slate-300">

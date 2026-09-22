@@ -193,6 +193,49 @@ def test_permisos_por_rol(client, admin):
     assert client.get('/api/ventas').status_code == 401
 
 
+def test_el_catalogo_publico_no_pide_sesion(client):
+    datos = client.get('/api/catalogo')
+    assert datos.status_code == 200, datos.text
+    cuerpo = datos.json()
+    assert cuerpo['productos'] and cuerpo['servicios']
+    assert {'id', 'name', 'description', 'price'} == set(cuerpo['productos'][0])
+
+
+def test_el_cliente_pide_su_carrito_a_su_propio_nombre(client, admin):
+    """El pedido toma el comprador del token y el precio del catálogo."""
+    client.post('/api/auth/register', json={
+        'name': 'Carro', 'lastName': 'Cliente', 'documentType': 'CC', 'documentNumber': '7070707070',
+        'address': 'Calle 3', 'phone': '3007070707', 'email': 'carrito@simonsc.com', 'password': 'Cliente1234',
+    })
+    token = client.post('/api/auth/login', json={
+        'email': 'carrito@simonsc.com', 'password': 'Cliente1234',
+    }).json()['token']
+    cliente = {'Authorization': f'Bearer {token}'}
+
+    catalogo = client.get('/api/catalogo').json()
+    producto = catalogo['productos'][0]
+
+    respuesta = client.post('/api/ventas/pedido', headers=cliente, json={
+        'items': [{'tipo': 'producto', 'itemId': producto['id'], 'cantidad': 2}],
+    })
+    assert respuesta.status_code == 200, respuesta.text
+    venta = respuesta.json()['venta']
+    assert venta['cliente'] == 'Carro Cliente'
+    # El precio sale del catálogo, no del navegador.
+    assert venta['detalle'][0]['precioUnitario'] == producto['price']
+    assert venta['subtotal'] == pytest.approx(producto['price'] * 2)
+
+    # Y el cliente solo ve esa compra en su historial.
+    historial = client.get('/api/ventas', headers=cliente).json()
+    assert [fila['numero'] for fila in historial['ventas']] == [venta['numero']]
+
+    # Un artículo inexistente no crea la venta.
+    assert client.post('/api/ventas/pedido', headers=cliente, json={
+        'items': [{'tipo': 'producto', 'itemId': 99999, 'cantidad': 1}],
+    }).status_code == 400
+    assert client.post('/api/ventas/pedido', json={'items': []}).status_code == 401
+
+
 def test_recuperacion_de_clave_genera_enlace_y_permite_cambiarla(client, capsys):
     """Sin SMTP el enlace se imprime; con ese token se cambia la contraseña."""
     correo = 'recupera@simonsc.com'

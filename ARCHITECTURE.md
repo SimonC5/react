@@ -9,10 +9,12 @@ sobre el patrón MVC. Refleja la estructura real del repositorio.
 react/
   src/                      Frontend React + Vite
     components/             Vista reutilizable (botones, formularios, header, chatbot)
+      Modal.jsx             Ventana emergente común: lleva el logo y se dibuja en el <body>
+      CartButton.jsx        Carrito del sitio público
       charts/               Gráficos SVG propios (barras y líneas)
       panel/                Módulos del panel: ventas, facturas, reportes, PQR, analítica
     pages/                  Vista por pantalla (inicio, productos, servicios, panel, ...)
-    context/                Estado de sesión (AuthContext)
+    context/                Estado de sesión (AuthContext) y carrito (CartContext)
     services/               Acceso a la API (api.js)
     utils/                  Formato de moneda y fechas, rutas por rol
     App.jsx                 Enrutador y composición de vistas
@@ -92,4 +94,14 @@ escribe en el código ni se publica.
 
 - **Administrador**: todo, incluida la gestión de usuarios y del catálogo de productos.
 - **Empleado**: ventas, facturas, reportes, PQR y servicios.
-- **Cliente**: solo sus compras, sus facturas y sus PQR.
+- **Cliente**: solo sus compras, sus facturas y sus PQR. No tiene dashboard.
+
+## Panel y carrito
+
+El panel muestra una sección a la vez: el botón del menú lateral cambia lo que
+se ve, no desplaza la página. La sesión se cierra desde ese menú.
+
+El carrito vive en el sitio público (`CartContext` + `CartButton`) y se guarda
+en el navegador. El catálogo con precios reales se pide a `GET /api/catalogo`,
+que es público, y el pedido se confirma con `POST /api/ventas/pedido`: el
+comprador sale del token y los precios del catálogo, nunca del navegador.

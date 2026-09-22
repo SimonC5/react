@@ -37,12 +37,16 @@ describe('Módulo de PQR', () => {
     pqrApi.crear.mockClear();
   });
 
-  it('radica una solicitud y muestra el número de radicado', async () => {
+  it('radica una solicitud desde la ventana emergente y muestra el radicado', async () => {
     render(<PqrModule puedeGestionar={false} />);
+
+    // El formulario vive en una ventana emergente: primero hay que abrirla.
+    expect(screen.queryByLabelText(/asunto/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /radicar una solicitud/i }));
 
     fireEvent.change(screen.getByLabelText(/asunto/i), { target: { value: 'Demora en la entrega' } });
     fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: 'El pedido llegó tarde.' } });
-    fireEvent.click(screen.getByRole('button', { name: /radicar solicitud/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^radicar solicitud$/i }));
 
     await waitFor(() => expect(screen.getByText(/PQR-000001/)).not.toBeNull());
     expect(pqrApi.crear).toHaveBeenCalledWith({

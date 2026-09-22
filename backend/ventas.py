@@ -70,9 +70,64 @@ def _load_detalle(conn, venta_id: int) -> list[dict[str, Any]]:
     return [detalle_row(row) for row in rows]
 
 
+class PedidoItem(BaseModel):
+    """Línea de un pedido hecho por el propio cliente desde el carrito."""
+
+    tipo: str = Field(description='producto o servicio')
+    itemId: int
+    cantidad: float = 1
+
+
+class PedidoCreate(BaseModel):
+    observaciones: str = ''
+    items: list[PedidoItem]
+
+
 @router.post('', dependencies=[Depends(require_roles('Administrador', 'Empleado'))])
 @router.post('/', dependencies=[Depends(require_roles('Administrador', 'Empleado'))], include_in_schema=False)
 def crear_venta(payload: VentaCreate, current_user: dict[str, Any] = Depends(get_current_user)):
+    return _registrar_venta(payload, current_user)
+
+
+@router.post('/pedido')
+def crear_pedido(payload: PedidoCreate, current_user: dict[str, Any] = Depends(get_current_user)):
+    """Pedido del carrito: la venta queda a nombre de quien tiene la sesión.
+
+    El cliente solo elige qué y cuánto. Ni el nombre del comprador ni los
+    precios ni los descuentos llegan desde el navegador: se toman del token y
+    del catálogo, de modo que nadie pueda pedir a nombre de otro ni fijarse su
+    propio precio.
+    """
+    _verificar_disponibles(payload.items)
+    nombre = f"{current_user.get('name', '')} {current_user.get('last_name', '')}".strip()
+    venta = VentaCreate(
+        clienteId=current_user.get('id'),
+        cliente=nombre or current_user.get('email', 'Cliente'),
+        clienteDocumento=current_user.get('document_number', '') or '',
+        observaciones=payload.observaciones,
+        items=[VentaItem(tipo=item.tipo, itemId=item.itemId, cantidad=item.cantidad) for item in payload.items],
+    )
+    resultado = _registrar_venta(venta, current_user)
+    return {'message': 'Pedido registrado correctamente.', 'venta': resultado['venta']}
+
+
+def _verificar_disponibles(items: list[PedidoItem]) -> None:
+    """Un pedido solo puede llevar artículos que hoy estén publicados."""
+    conn = get_db_connection()
+    try:
+        for item in items:
+            tipo = item.tipo.strip().lower()
+            if tipo not in TIPOS_ITEM:
+                raise HTTPException(status_code=400, detail='Cada línea debe ser de tipo producto o servicio.')
+            tabla = 'productos' if tipo == 'producto' else 'servicios'
+            fila = conn.execute(f'SELECT active FROM {tabla} WHERE id = ?', (item.itemId,)).fetchone()
+            if fila is None or not fila['active']:
+                raise HTTPException(status_code=400, detail='Uno de los artículos del carrito ya no está disponible.')
+    finally:
+        conn.close()
+
+
+def _registrar_venta(payload: VentaCreate, current_user: dict[str, Any]) -> dict[str, Any]:
     if not payload.cliente.strip():
         raise HTTPException(status_code=400, detail='El nombre del cliente es obligatorio.')
     if not payload.items:

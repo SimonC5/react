@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 import Button from './Button';
 import UserMenu from './UserMenu';
+import CartButton from './CartButton';
 import { useAuth } from '../context/AuthContext';
 import { esRutaDePanel } from '../utils/rutas';
 
@@ -52,6 +53,7 @@ function Header() {
         )}
 
         <div className="flex items-center gap-3">
+          {!enPanel && <CartButton />}
           {user ? (
             <UserMenu />
           ) : (

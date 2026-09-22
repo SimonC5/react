@@ -41,7 +41,8 @@ describe('Menú del usuario en el header', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /entrar al panel/i })).not.toBeNull());
     expect(screen.getByText('ana@simonsc.com')).not.toBeNull();
-    expect(screen.getByRole('button', { name: /cerrar sesión/i })).not.toBeNull();
+    // La sesión se cierra desde el panel, no desde este menú.
+    expect(screen.queryByRole('button', { name: /cerrar sesión/i })).toBeNull();
   });
 
   it('cierra el menú con la tecla Escape', async () => {

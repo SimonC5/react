@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import Modal from '../Modal';
 import BarChart from '../charts/BarChart';
 import LineChart from '../charts/LineChart';
 import StatCard from '../charts/StatCard';
@@ -17,6 +18,7 @@ function AnalyticsModule({ rol }) {
   const [series, setSeries] = useState(null);
   const [opciones, setOpciones] = useState({ productos: [], servicios: [], clientes: [], estadosVenta: [] });
   const [filtros, setFiltros] = useState(filtrosVacios);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [error, setError] = useState('');
 
   const cargarSeries = useCallback(
@@ -41,11 +43,20 @@ function AnalyticsModule({ rol }) {
 
   return (
     <section id="dashboard-panel" className="space-y-4">
-      <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
-        <h2 className="text-xl font-bold text-white">{titulo}</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Indicadores calculados en tiempo real desde FastAPI y la base de datos.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
+        <div>
+          <h2 className="text-xl font-bold text-white">{titulo}</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Indicadores calculados en tiempo real desde FastAPI y la base de datos.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+          onClick={() => setFiltrosAbiertos(true)}
+        >
+          Filtros de los gráficos
+        </button>
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
@@ -56,10 +67,13 @@ function AnalyticsModule({ rol }) {
         ))}
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
-        <h3 className="font-semibold text-white">Filtros de los gráficos</h3>
-
-        <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-7">
+      <Modal
+        isOpen={filtrosAbiertos}
+        onClose={() => setFiltrosAbiertos(false)}
+        title="Filtros de los gráficos"
+        subtitle="Elige el periodo y acota los datos que quieres ver."
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm text-slate-300">
             Agrupar por
             <select className="field mt-1" value={filtros.agrupacion} onChange={(event) => setFiltros({ ...filtros, agrupacion: event.target.value })}>
@@ -122,28 +136,36 @@ function AnalyticsModule({ rol }) {
           </label>
         </div>
 
-        <div className="flex gap-2">
-          <button type="button" className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950" onClick={() => cargarSeries(filtros)}>
-            Aplicar filtros
-          </button>
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
             onClick={() => {
               setFiltros(filtrosVacios);
               cargarSeries(filtrosVacios);
+              setFiltrosAbiertos(false);
             }}
           >
             Limpiar
           </button>
+          <button
+            type="button"
+            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+            onClick={() => {
+              cargarSeries(filtros);
+              setFiltrosAbiertos(false);
+            }}
+          >
+            Aplicar filtros
+          </button>
         </div>
+      </Modal>
 
-        {series && (
-          <p className="text-sm text-slate-400">
-            {formatoNumero(series.totales.ventas)} venta(s) · {formatoMoneda(series.totales.monto)} en el periodo consultado.
-          </p>
-        )}
-      </div>
+      {series && (
+        <p className="text-sm text-slate-400">
+          {formatoNumero(series.totales.ventas)} venta(s) · {formatoMoneda(series.totales.monto)} en el periodo consultado.
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <BarChart title="Monto vendido por periodo" data={series?.barras || []} formatValue={formatoMoneda} />

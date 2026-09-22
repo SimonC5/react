@@ -1,23 +1,26 @@
-const services = [
-  {
-    title: 'Desarrollo web',
-    description: 'Sitios y aplicaciones web modernas, rápidas y preparadas para ofrecer una excelente experiencia al usuario.',
-  },
-  {
-    title: 'Branding digital',
-    description: 'Estrategias visuales y de posicionamiento digital para construir una marca clara, confiable y memorable.',
-  },
-  {
-    title: 'E-commerce',
-    description: 'Tiendas online con experiencia optimizada, pagos seguros y diseño orientado a la conversión.',
-  },
-  {
-    title: 'Marketing UX',
-    description: 'Diseño centrado en la experiencia del usuario para mejorar la interacción, la retención y el rendimiento.',
-  },
-];
+import { useEffect, useState } from 'react';
+import { catalogoApi } from '../services/api';
+import { useCart } from '../context/CartContext';
+import { formatoMoneda } from '../utils/formato';
 
 function ServicesPage() {
+  const { agregar } = useCart();
+  const [servicios, setServicios] = useState([]);
+  const [error, setError] = useState('');
+  const [agregado, setAgregado] = useState('');
+
+  useEffect(() => {
+    catalogoApi
+      .publico()
+      .then((data) => setServicios(data.servicios || []))
+      .catch((requestError) => setError(requestError.message));
+  }, []);
+
+  const alAgregar = (servicio) => {
+    agregar({ tipo: 'servicio', id: servicio.id, nombre: servicio.name, precio: Number(servicio.price || 0) });
+    setAgregado(servicio.name);
+  };
+
   return (
     <section className="space-y-8 py-6">
       <div className="rounded-[2rem] bg-gradient-to-r from-violet-500/10 via-slate-900 to-cyan-500/10 p-8 text-white shadow-[0_25px_80px_rgba(168,85,247,0.12)]">
@@ -28,15 +31,31 @@ function ServicesPage() {
         </p>
       </div>
 
+      {error && <p className="rounded-xl bg-red-500/10 p-4 text-sm text-red-300">{error}</p>}
+      {agregado && (
+        <p className="rounded-xl bg-emerald-500/10 p-4 text-sm text-emerald-200">
+          "{agregado}" se agregó al carrito. Ábrelo arriba para confirmar el pedido.
+        </p>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2">
-        {services.map(({ title, description }) => (
-          <div key={title} className="rounded-3xl border border-slate-700 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/20">
-            <div className="mb-4 inline-flex rounded-full border border-violet-400/40 bg-violet-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-violet-200">
-              {title}
+        {servicios.map((servicio) => (
+          <div key={servicio.id} className="flex flex-col rounded-3xl border border-slate-700 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/20">
+            <div className="mb-4 inline-flex self-start rounded-full border border-violet-400/40 bg-violet-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-violet-200">
+              {servicio.name}
             </div>
-            <p className="text-base leading-7 text-slate-300">{description}</p>
+            <p className="flex-1 text-base leading-7 text-slate-300">{servicio.description}</p>
+            <p className="mt-4 text-lg font-bold text-cyan-300">{formatoMoneda(servicio.price)}</p>
+            <button
+              type="button"
+              onClick={() => alAgregar(servicio)}
+              className="mt-4 self-start rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+            >
+              Agregar al carrito
+            </button>
           </div>
         ))}
+        {!servicios.length && !error && <p className="text-sm text-slate-400">Cargando el catálogo...</p>}
       </div>
     </section>
   );

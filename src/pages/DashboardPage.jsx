@@ -115,12 +115,17 @@ function IconLogout() {
   );
 }
 
-function SidebarButton({ icon, label, onClick }) {
+function SidebarButton({ icon, label, onClick, activo = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left text-slate-200 transition hover:border-slate-700 hover:bg-slate-800/70"
+      aria-current={activo ? 'page' : undefined}
+      className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+        activo
+          ? 'border-cyan-400/40 bg-cyan-500/10 text-white'
+          : 'border-transparent text-slate-200 hover:border-slate-700 hover:bg-slate-800/70'
+      }`}
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-300">{icon}</span>
       <span className="font-medium">{label}</span>
@@ -342,22 +347,28 @@ function DashboardPage({ role }) {
   // Administrador y empleado operan; el cliente solo consulta lo suyo.
   const gestionaComercial = esAdministrador || role === 'Empleado';
 
-  const sidebarItems = useMemo(() => {
-    const irA = (id) => () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  // Cada entrada del menú muestra su sección y esconde las demás. El cliente
+  // no tiene dashboard, así que esa entrada no existe para él.
+  const secciones = useMemo(
+    () => [
+      ...(esCliente ? [] : [{ clave: 'dashboard', label: 'Dashboard', icon: <IconChart /> }]),
+      { clave: 'ventas', label: esCliente ? 'Mis compras' : 'Ventas', icon: <IconSale /> },
+      { clave: 'facturas', label: esCliente ? 'Mis facturas' : 'Facturación', icon: <IconInvoice /> },
+      ...(gestionaComercial ? [{ clave: 'reportes', label: 'Reportes', icon: <IconReport /> }] : []),
+      { clave: 'pqr', label: 'PQR', icon: <IconSupport /> },
+      ...(esAdministrador ? [{ clave: 'usuarios', label: 'Usuarios', icon: <IconUsers /> }] : []),
+      { clave: 'productos', label: esCliente ? 'Catálogo' : 'Productos', icon: <IconPackage /> },
+      { clave: 'servicios', label: 'Servicios', icon: <IconService /> },
+    ],
+    [esAdministrador, esCliente, gestionaComercial],
+  );
 
-    return [
-      { label: 'Mi página', icon: <IconHome />, action: () => navigate('/') },
-      { label: 'Dashboard', icon: <IconChart />, action: irA('dashboard-panel') },
-      { label: esCliente ? 'Mis compras' : 'Ventas', icon: <IconSale />, action: irA('ventas-panel') },
-      { label: esCliente ? 'Mis facturas' : 'Facturación', icon: <IconInvoice />, action: irA('facturas-panel') },
-      ...(gestionaComercial ? [{ label: 'Reportes', icon: <IconReport />, action: irA('reportes-panel') }] : []),
-      { label: 'PQR', icon: <IconSupport />, action: irA('pqr-panel') },
-      ...(esAdministrador ? [{ label: 'Usuarios', icon: <IconUsers />, action: irA('usuarios-panel') }] : []),
-      { label: esCliente ? 'Catálogo' : 'Productos', icon: <IconPackage />, action: irA('productos-panel') },
-      { label: 'Servicios', icon: <IconService />, action: irA('servicios-panel') },
-      { label: 'Cerrar sesión', icon: <IconLogout />, action: () => { logout(); navigate('/login'); } },
-    ];
-  }, [esAdministrador, esCliente, gestionaComercial, logout, navigate]);
+  const [seccion, setSeccion] = useState(secciones[0].clave);
+
+  useEffect(() => {
+    // Si cambia el rol, la sección activa puede dejar de existir.
+    if (!secciones.some((item) => item.clave === seccion)) setSeccion(secciones[0].clave);
+  }, [secciones, seccion]);
 
   const loadUsers = () => apiRequest('/users').then((data) => setUsers(data.users || []));
 
@@ -434,9 +445,24 @@ function DashboardPage({ role }) {
           </div>
 
           <nav className="space-y-2">
-            {sidebarItems.map(({ label, icon, action }) => (
-              <SidebarButton key={label} icon={icon} label={label} onClick={action} />
+            <SidebarButton icon={<IconHome />} label="Mi página" onClick={() => navigate('/')} />
+            {secciones.map(({ clave, label, icon }) => (
+              <SidebarButton
+                key={clave}
+                icon={icon}
+                label={label}
+                activo={seccion === clave}
+                onClick={() => setSeccion(clave)}
+              />
             ))}
+            <SidebarButton
+              icon={<IconLogout />}
+              label="Cerrar sesión"
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+            />
           </nav>
         </aside>
 
@@ -449,7 +475,7 @@ function DashboardPage({ role }) {
 
           {message && <p className="rounded-lg bg-cyan-500/10 p-3 text-cyan-200">{message}</p>}
 
-          {esAdministrador && (
+          {esAdministrador && seccion === 'usuarios' && (
             <div id="usuarios-panel" className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
               <h2 className="text-xl font-bold text-white">Administrar usuarios</h2>
 
@@ -511,31 +537,42 @@ function DashboardPage({ role }) {
             </div>
           )}
 
-          <AnalyticsModule rol={role} />
+          {seccion === 'dashboard' && !esCliente && <AnalyticsModule rol={role} />}
 
-          <SalesModule puedeRegistrar={gestionaComercial} titulo={esCliente ? 'Mis compras' : 'Ventas'} />
+          {seccion === 'ventas' && (
+            <SalesModule puedeRegistrar={gestionaComercial} titulo={esCliente ? 'Mis compras' : 'Ventas'} />
+          )}
 
-          <InvoicesModule titulo={esCliente ? 'Mis facturas' : 'Facturación'} />
-
-          {gestionaComercial && <ReportsModule />}
-
-          <PqrModule puedeGestionar={gestionaComercial} />
-
-          <div id="productos-panel">
-            <ResourceManager
-              resource="products"
-              title={esCliente ? 'Catálogo de productos' : 'Productos'}
-              puedeEditar={esAdministrador}
+          {seccion === 'facturas' && (
+            <InvoicesModule
+              titulo={esCliente ? 'Mis facturas' : 'Facturación'}
+              puedeGenerar={gestionaComercial}
             />
-          </div>
+          )}
 
-          <div id="servicios-panel">
-            <ResourceManager
-              resource="services"
-              title={esCliente ? 'Catálogo de servicios' : 'Servicios'}
-              puedeEditar={gestionaComercial}
-            />
-          </div>
+          {seccion === 'reportes' && gestionaComercial && <ReportsModule />}
+
+          {seccion === 'pqr' && <PqrModule puedeGestionar={gestionaComercial} />}
+
+          {seccion === 'productos' && (
+            <div id="productos-panel">
+              <ResourceManager
+                resource="products"
+                title={esCliente ? 'Catálogo de productos' : 'Productos'}
+                puedeEditar={esAdministrador}
+              />
+            </div>
+          )}
+
+          {seccion === 'servicios' && (
+            <div id="servicios-panel">
+              <ResourceManager
+                resource="services"
+                title={esCliente ? 'Catálogo de servicios' : 'Servicios'}
+                puedeEditar={gestionaComercial}
+              />
+            </div>
+          )}
         </div>
       </div>
     </section>

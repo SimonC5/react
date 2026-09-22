@@ -454,6 +454,30 @@ def get_resource_list(table: str):
     return handler
 
 
+@app.get('/api/catalogo')
+def public_catalog():
+    """Catálogo de la web pública: solo lo publicado, sin necesidad de sesión.
+
+    Es lo que alimenta las páginas de Productos y Servicios y el carrito, así
+    que devuelve el id y el precio reales para que el pedido no dependa de
+    datos escritos en el navegador.
+    """
+    conn = get_db_connection()
+    try:
+        productos = conn.execute(
+            'SELECT id, name, description, price FROM productos WHERE active = 1 ORDER BY id'
+        ).fetchall()
+        servicios = conn.execute(
+            'SELECT id, name, description, price FROM servicios WHERE active = 1 ORDER BY id'
+        ).fetchall()
+        return {
+            'productos': [dict(row) for row in productos],
+            'servicios': [dict(row) for row in servicios],
+        }
+    finally:
+        conn.close()
+
+
 @app.get('/api/products')
 def list_products(current_user: dict[str, Any] = Depends(get_current_user)):
     conn = get_db_connection()

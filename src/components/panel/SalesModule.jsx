@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Modal from '../Modal';
 import { apiRequest, facturasApi, ventasApi } from '../../services/api';
 import { fechaCorta, formatoMoneda } from '../../utils/formato';
 
@@ -19,6 +20,7 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
   const [ventas, setVentas] = useState([]);
   const [resumen, setResumen] = useState({ cantidad: 0, total: 0 });
   const [seleccionada, setSeleccionada] = useState(null);
+  const [registroAbierto, setRegistroAbierto] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
@@ -99,6 +101,7 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
       setError('');
       setCabecera({ cliente: '', clienteDocumento: '', observaciones: '' });
       setLineas([{ ...lineaVacia }]);
+      setRegistroAbierto(false);
       await cargarVentas(filtros);
     } catch (requestError) {
       setError(requestError.message);
@@ -132,8 +135,24 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
 
       {puedeRegistrar && (
-        <form onSubmit={registrarVenta} className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-          <h3 className="font-semibold text-white">Registrar una venta</h3>
+        <button
+          type="button"
+          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+          onClick={() => setRegistroAbierto(true)}
+        >
+          Registrar una venta
+        </button>
+      )}
+
+      {puedeRegistrar && (
+        <Modal
+          isOpen={registroAbierto}
+          onClose={() => setRegistroAbierto(false)}
+          title="Registrar una venta"
+          subtitle="Elige el cliente y añade los productos o servicios vendidos."
+          size="lg"
+        >
+          <form onSubmit={registrarVenta} className="space-y-4">
 
           <div className="grid gap-3 md:grid-cols-3">
             <label className="text-sm text-slate-300">
@@ -245,10 +264,20 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
             </p>
           </div>
 
-          <button type="submit" className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">
-            Registrar venta
-          </button>
-        </form>
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
+              onClick={() => setRegistroAbierto(false)}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">
+              Registrar venta
+            </button>
+          </div>
+          </form>
+        </Modal>
       )}
 
       <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -352,16 +381,13 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
         </div>
       </div>
 
-      {seleccionada && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-xl font-bold text-white">Venta {seleccionada.numero}</h3>
-              <button type="button" className="text-xl text-slate-400" onClick={() => setSeleccionada(null)} aria-label="Cerrar detalle">
-                ×
-              </button>
-            </div>
-
+      <Modal
+        isOpen={Boolean(seleccionada)}
+        onClose={() => setSeleccionada(null)}
+        title={`Venta ${seleccionada?.numero || ''}`}
+      >
+        {seleccionada && (
+          <>
             <p className="text-sm text-slate-300">
               Cliente: {seleccionada.cliente} · Documento: {seleccionada.clienteDocumento || 'No registrado'} · Fecha:{' '}
               {fechaCorta(seleccionada.fecha)}
@@ -394,9 +420,9 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
               Subtotal {formatoMoneda(seleccionada.subtotal)} · Impuestos {formatoMoneda(seleccionada.impuestos)} ·{' '}
               <span className="font-semibold text-cyan-300">Total {formatoMoneda(seleccionada.total)}</span>
             </p>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </section>
   );
 }

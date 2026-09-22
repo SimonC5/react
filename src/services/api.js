@@ -71,6 +71,12 @@ export const ventasApi = {
   listar: (filtros) => apiRequest(`/ventas${buildQuery(filtros)}`),
   detalle: (id) => apiRequest(`/ventas/${id}`),
   cambiarEstado: (id, estado) => apiRequest(`/ventas/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }),
+  pedido: (body) => apiRequest('/ventas/pedido', { method: 'POST', body: JSON.stringify(body) }),
+};
+
+// Catálogo público: lo que ven las páginas de Productos y Servicios.
+export const catalogoApi = {
+  publico: () => apiRequest('/catalogo'),
 };
 
 export const facturasApi = {

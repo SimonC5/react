@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { rutaDelPanel } from '../utils/rutas';
 
 /**
- * Nombre del usuario en el header. Al hacer clic despliega el acceso al panel
- * y el cierre de sesión.
+ * Nombre del usuario en el header. Al hacer clic despliega el acceso al panel.
+ * La sesión se cierra desde el propio panel, no desde aquí.
  */
 function UserMenu() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [abierto, setAbierto] = useState(false);
   const contenedorRef = useRef(null);
@@ -38,12 +38,6 @@ function UserMenu() {
   const irAlPanel = () => {
     setAbierto(false);
     navigate(rutaDelPanel(user.role));
-  };
-
-  const cerrarSesion = () => {
-    setAbierto(false);
-    logout();
-    navigate('/login');
   };
 
   return (
@@ -78,14 +72,6 @@ function UserMenu() {
             className="mt-2 w-full rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
           >
             Entrar al panel
-          </button>
-
-          <button
-            type="button"
-            onClick={cerrarSesion}
-            className="mt-2 w-full rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
-          >
-            Cerrar sesión
           </button>
         </div>
       )}

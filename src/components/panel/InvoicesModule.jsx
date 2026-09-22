@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { facturasApi } from '../../services/api';
+import Modal from '../Modal';
+import { facturasApi, ventasApi } from '../../services/api';
 import { fechaCorta, formatoMoneda } from '../../utils/formato';
 
 const filtrosVacios = { numero: '', cliente: '', estado: '', fechaInicio: '', fechaFin: '' };
@@ -8,10 +9,12 @@ const filtrosVacios = { numero: '', cliente: '', estado: '', fechaInicio: '', fe
  * Consulta y descarga de facturas de venta.
  * Cubre los requerimientos 8 y 9 del quinto avance.
  */
-function InvoicesModule({ titulo = 'Facturación' }) {
+function InvoicesModule({ titulo = 'Facturación', puedeGenerar = false }) {
   const [filtros, setFiltros] = useState(filtrosVacios);
   const [facturas, setFacturas] = useState([]);
   const [seleccionada, setSeleccionada] = useState(null);
+  const [generacionAbierta, setGeneracionAbierta] = useState(false);
+  const [sinFacturar, setSinFacturar] = useState([]);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
@@ -30,6 +33,31 @@ function InvoicesModule({ titulo = 'Facturación' }) {
   useEffect(() => {
     cargar(filtrosVacios);
   }, [cargar]);
+
+  /** Abre la ventana con las ventas que todavía no tienen factura. */
+  const abrirGeneracion = async () => {
+    setGeneracionAbierta(true);
+    try {
+      const [ventasData, facturasData] = await Promise.all([ventasApi.listar({}), facturasApi.listar({})]);
+      const yaFacturadas = new Set((facturasData.facturas || []).map((factura) => factura.ventaId));
+      setSinFacturar((ventasData.ventas || []).filter((venta) => !yaFacturadas.has(venta.id) && venta.estado !== 'Anulada'));
+      setError('');
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  const generar = async (venta) => {
+    try {
+      const data = await facturasApi.generar(venta.id);
+      setMensaje(`${data.message} Número ${data.factura.numero}.`);
+      setError('');
+      setGeneracionAbierta(false);
+      await cargar(filtrosVacios);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
 
   const descargar = async (factura) => {
     try {
@@ -56,6 +84,45 @@ function InvoicesModule({ titulo = 'Facturación' }) {
 
       {mensaje && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-200">{mensaje}</p>}
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+
+      {puedeGenerar && (
+        <button
+          type="button"
+          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+          onClick={abrirGeneracion}
+        >
+          Generar una factura
+        </button>
+      )}
+
+      <Modal
+        isOpen={generacionAbierta}
+        onClose={() => setGeneracionAbierta(false)}
+        title="Generar una factura"
+        subtitle="Elige la venta que quieres facturar."
+      >
+        <ul className="space-y-2">
+          {sinFacturar.map((venta) => (
+            <li
+              key={venta.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3"
+            >
+              <span className="text-sm text-slate-300">
+                <span className="font-semibold text-white">{venta.numero}</span> · {venta.cliente} ·{' '}
+                {formatoMoneda(venta.total)}
+              </span>
+              <button
+                type="button"
+                className="rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950"
+                onClick={() => generar(venta)}
+              >
+                Facturar
+              </button>
+            </li>
+          ))}
+          {!sinFacturar.length && <li className="text-sm text-slate-500">Todas las ventas ya están facturadas.</li>}
+        </ul>
+      </Modal>
 
       <div className="grid gap-3 md:grid-cols-5">
         <label className="text-sm text-slate-300">
@@ -146,16 +213,13 @@ function InvoicesModule({ titulo = 'Facturación' }) {
         </table>
       </div>
 
-      {seleccionada && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-xl font-bold text-white">Factura {seleccionada.numero}</h3>
-              <button type="button" className="text-xl text-slate-400" onClick={() => setSeleccionada(null)} aria-label="Cerrar factura">
-                ×
-              </button>
-            </div>
-
+      <Modal
+        isOpen={Boolean(seleccionada)}
+        onClose={() => setSeleccionada(null)}
+        title={`Factura ${seleccionada?.numero || ''}`}
+      >
+        {seleccionada && (
+          <>
             <p className="text-sm text-slate-300">
               Cliente: {seleccionada.cliente} · Documento: {seleccionada.clienteDocumento || 'No registrado'} · Fecha:{' '}
               {fechaCorta(seleccionada.fecha)}
@@ -186,9 +250,9 @@ function InvoicesModule({ titulo = 'Facturación' }) {
               Subtotal {formatoMoneda(seleccionada.subtotal)} · Impuestos {formatoMoneda(seleccionada.impuestos)} ·{' '}
               <span className="font-semibold text-cyan-300">Total {formatoMoneda(seleccionada.total)}</span>
             </p>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </section>
   );
 }

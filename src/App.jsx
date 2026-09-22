@@ -13,6 +13,7 @@ import DashboardPage from './pages/DashboardPage'
 import WhatsAppButton from './components/WhatsAppButton'
 import Chatbot from './components/Chatbot'
 import { AuthProvider } from './context/AuthContext'
+import { CartProvider } from './context/CartContext'
 import { esRutaDePanel } from './utils/rutas'
 
 function ScrollToHash() {
@@ -69,10 +70,12 @@ function Layout() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <ScrollToHash />
-        <Layout />
-      </BrowserRouter>
+      <CartProvider>
+        <BrowserRouter>
+          <ScrollToHash />
+          <Layout />
+        </BrowserRouter>
+      </CartProvider>
     </AuthProvider>
   )
 }
