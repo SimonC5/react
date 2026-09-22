@@ -105,6 +105,13 @@ def _normalizar(valor: Any) -> Any:
     return valor
 
 
+# FOUND_ROWS hace que un UPDATE informe las filas que coincidieron, no solo las
+# que cambiaron de valor, que es lo que hace SQLite. Sin esto, desactivar algo
+# que ya estaba desactivado respondía "no encontrado".
+CLIENT_FOUND_ROWS = 2
+_OPCIONES_MYSQL: dict[str, Any] = {'autocommit': False, 'client_flags': [CLIENT_FOUND_ROWS]}
+
+
 def _traducir(consulta: str) -> str:
     """Pasa el SQL escrito para SQLite al dialecto de MySQL."""
     return consulta.replace('INSERT OR IGNORE', 'INSERT IGNORE').replace('?', '%s')
@@ -118,9 +125,12 @@ class _CursorMySQL:
     revienta con "Unread result found", así que no se deja nada pendiente.
     """
 
-    def __init__(self, filas: list[dict[str, Any]], lastrowid: Optional[int]):
+    def __init__(self, filas: list[dict[str, Any]], lastrowid: Optional[int], rowcount: int = -1):
         self._filas = [Fila((k, _normalizar(v)) for k, v in fila.items()) for fila in filas]
         self.lastrowid = lastrowid
+        # El backend mira "rowcount" para saber si un UPDATE o un DELETE
+        # encontró la fila y, si no, responder 404.
+        self.rowcount = rowcount
         self._siguiente = 0
 
     def fetchone(self) -> Optional[Fila]:
@@ -154,7 +164,7 @@ class ConexionMySQL:
                 # Sin parámetros no se interpola, así que un '%' del SQL no estorba.
                 cursor.execute(_traducir(consulta))
             filas = cursor.fetchall() if getattr(cursor, 'with_rows', False) else []
-            return _CursorMySQL(filas, cursor.lastrowid)
+            return _CursorMySQL(filas, cursor.lastrowid, cursor.rowcount)
         finally:
             cursor.close()
 
@@ -216,12 +226,12 @@ def get_db_connection():
         parametros = _parametros_mysql()
         nombre = parametros.pop('database')
         try:
-            conexion = mysql.connector.connect(**parametros, database=nombre, autocommit=False)
+            conexion = mysql.connector.connect(**parametros, database=nombre, **_OPCIONES_MYSQL)
         except mysql.connector.Error as error:
             if getattr(error, 'errno', None) != ER_BAD_DB_ERROR:
                 raise
             _crear_base_mysql(parametros, nombre)
-            conexion = mysql.connector.connect(**parametros, database=nombre, autocommit=False)
+            conexion = mysql.connector.connect(**parametros, database=nombre, **_OPCIONES_MYSQL)
         return ConexionMySQL(conexion)
 
     conn = sqlite3.connect(DB_PATH)

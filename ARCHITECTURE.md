@@ -23,6 +23,7 @@ react/
     core.py                 Base de datos (SQLite o MySQL), JWT, roles y carga de backend/.env
     models.py / schemas.py  Modelos ORM y contratos de entrada/salida
     database.py             Creación inicial de tablas
+    catalogo_demo.py        Catálogo de demostración: 20 gafas VR y 20 servicios
     comercial.py            Esquema y utilidades de las tablas comerciales
     ventas.py               Ventas y detalle de ventas
     facturas.py             Facturación y descarga en PDF
@@ -105,3 +106,19 @@ El carrito vive en el sitio público (`CartContext` + `CartButton`) y se guarda
 en el navegador. El catálogo con precios reales se pide a `GET /api/catalogo`,
 que es público, y el pedido se confirma con `POST /api/ventas/pedido`: el
 comprador sale del token y los precios del catálogo, nunca del navegador.
+
+Ese pedido también emite la factura (`emitir_factura_de_venta`), de modo que el
+cliente la ve en "Mis facturas" sin que nadie la genere a mano. El botón
+"Generar una factura" del panel sigue existiendo para las ventas que registran
+el Administrador o el Empleado.
+
+## Catálogo
+
+`backend/catalogo_demo.py` tiene los 20 visores y los 20 servicios que la API
+siembra la primera vez que arranca, y la lista de artículos del avance anterior
+que quedan desactivados. Nada se borra: las ventas antiguas siguen citando esos
+nombres. Quien administra ve el catálogo entero; el Cliente y la tienda pública
+solo ven lo que está activo.
+
+Las imágenes de los visores se dibujan en el propio sitio
+(`src/components/VrHeadset.jsx`), sin depender de fotos externas.

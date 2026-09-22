@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 try:
+    from .facturas import emitir_factura_de_venta
     from .core import get_current_user, get_db_connection, require_roles
     from .comercial import (
         ESTADOS_VENTA,
@@ -18,6 +19,7 @@ try:
         venta_row,
     )
 except ImportError:
+    from facturas import emitir_factura_de_venta
     from core import get_current_user, get_db_connection, require_roles
     from comercial import (
         ESTADOS_VENTA,
@@ -108,7 +110,15 @@ def crear_pedido(payload: PedidoCreate, current_user: dict[str, Any] = Depends(g
         items=[VentaItem(tipo=item.tipo, itemId=item.itemId, cantidad=item.cantidad) for item in payload.items],
     )
     resultado = _registrar_venta(venta, current_user)
-    return {'message': 'Pedido registrado correctamente.', 'venta': resultado['venta']}
+
+    # El cliente no depende de que alguien le facture a mano: la factura sale
+    # con el pedido y ya le aparece en "Mis facturas".
+    try:
+        factura = emitir_factura_de_venta(resultado['venta']['id'])['factura']
+    except HTTPException:
+        factura = None
+
+    return {'message': 'Pedido registrado correctamente.', 'venta': resultado['venta'], 'factura': factura}
 
 
 def _verificar_disponibles(items: list[PedidoItem]) -> None:

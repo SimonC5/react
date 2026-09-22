@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react';
 import { catalogoApi } from '../services/api';
 import { useCart } from '../context/CartContext';
+import VrHeadset from '../components/VrHeadset';
 import { formatoMoneda } from '../utils/formato';
-
-// Imagen de cada producto del catálogo. Si el administrador crea uno nuevo se
-// usa la de reserva, así la página nunca queda con un hueco.
-const imagenes = {
-  'Branding Premium': 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
-  'E-commerce Avanzado': 'https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=900&q=80',
-  'Landing Pages': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=900&q=80',
-  'Dashboard Empresarial': 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=900&q=80',
-};
-const imagenPorDefecto = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=900&q=80';
 
 function ProductsPage() {
   const { agregar } = useCart();
@@ -35,9 +26,10 @@ function ProductsPage() {
     <section className="space-y-8 py-6">
       <div className="rounded-[2rem] bg-gradient-to-r from-cyan-500/10 via-slate-900 to-violet-500/10 p-8 text-white shadow-[0_25px_80px_rgba(34,211,238,0.12)]">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Productos</p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight text-white sm:text-5xl">Nuestra oferta digital</h1>
+        <h1 className="mt-3 text-4xl font-black tracking-tight text-white sm:text-5xl">Gafas de realidad virtual</h1>
         <p className="mt-4 max-w-2xl text-slate-300">
-          Soluciones pensadas para empresas que desean crecer con presencia digital, branding sólido y tecnología que mejore cada interacción.
+          Visores para jugar, entrenar y trabajar: desde el modelo autónomo que se usa sin computador hasta los de 8K para
+          diseño e ingeniería. Agrégalos al carrito y confirma tu pedido en un paso.
         </p>
       </div>
 
@@ -49,12 +41,12 @@ function ProductsPage() {
       )}
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        {productos.map((producto) => (
+        {productos.map((producto, posicion) => (
           <article
             key={producto.id}
             className="flex flex-col overflow-hidden rounded-3xl border border-slate-700 bg-slate-900/80 shadow-xl shadow-slate-950/20"
           >
-            <img src={imagenes[producto.name] || imagenPorDefecto} alt={producto.name} className="h-52 w-full object-cover" />
+            <VrHeadset variante={posicion} className="h-52 w-full object-cover" />
             <div className="flex flex-1 flex-col gap-3 p-5">
               <h2 className="text-xl font-semibold text-white">{producto.name}</h2>
               <p className="flex-1 text-sm leading-6 text-slate-300">{producto.description}</p>

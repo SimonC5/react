@@ -93,6 +93,14 @@
       }
     },
     {
+      "name": "Catálogo público",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/catalogo",
+        "description": "Productos y servicios activos de la tienda. No pide token: lo usan las páginas públicas y el carrito."
+      }
+    },
+    {
       "name": "Productos GET",
       "request": {
         "method": "GET",
@@ -308,6 +316,28 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"cliente\": \"Laura Gómez\",\n  \"clienteDocumento\": \"1024567890\",\n  \"observaciones\": \"Venta desde el sitio web\",\n  \"items\": [\n    {\n      \"tipo\": \"producto\",\n      \"itemId\": 1,\n      \"cantidad\": 2,\n      \"descuento\": 0\n    },\n    {\n      \"tipo\": \"servicio\",\n      \"itemId\": 1,\n      \"cantidad\": 1,\n      \"descuento\": 50000\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Pedido desde el carrito",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas/pedido",
+            "description": "Pedido que hace el propio cliente. Solo manda tipo, itemId y cantidad: el comprador sale del token, los precios del catálogo y la factura se emite sola.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observaciones\": \"Pedido desde el carrito\",\n  \"items\": [\n    {\n      \"tipo\": \"producto\",\n      \"itemId\": 1,\n      \"cantidad\": 1\n    },\n    {\n      \"tipo\": \"servicio\",\n      \"itemId\": 1,\n      \"cantidad\": 1\n    }\n  ]\n}"
             }
           }
         },

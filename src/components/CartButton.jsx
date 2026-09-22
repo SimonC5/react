@@ -32,7 +32,8 @@ function CartButton() {
       const data = await ventasApi.pedido({
         items: items.map((item) => ({ tipo: item.tipo, itemId: item.id, cantidad: item.cantidad })),
       });
-      setMensaje(`${data.message} Número ${data.venta.numero}.`);
+      const factura = data.factura ? ` Tu factura ${data.factura.numero} ya está en "Mis facturas".` : '';
+      setMensaje(`${data.message} Número ${data.venta.numero}.${factura}`);
       vaciar();
     } catch (requestError) {
       setError(requestError.message);

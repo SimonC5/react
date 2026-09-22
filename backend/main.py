@@ -22,6 +22,7 @@ try:
         require_roles,
         verify_password,
     )
+    from .catalogo_demo import RETIRADOS as CATALOGO_RETIRADO, SEED as SEED_CATALOGO
     from .comercial import init_comercial_db
     from .recuperacion import init_recuperacion_db
     from . import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
@@ -41,6 +42,7 @@ except ImportError:
         require_roles,
         verify_password,
     )
+    from catalogo_demo import RETIRADOS as CATALOGO_RETIRADO, SEED as SEED_CATALOGO
     from comercial import init_comercial_db
     from recuperacion import init_recuperacion_db
     import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
@@ -208,13 +210,7 @@ def init_db():
 
         # "name" no tiene restricción UNIQUE, así que INSERT OR IGNORE no evitaba
         # nada y el catálogo se duplicaba en cada arranque del backend.
-        seed_catalog = (
-            ('productos', 'Branding Premium', 'Identidad visual estratégica para marcas.', 850000),
-            ('productos', 'E-commerce Avanzado', 'Tienda online orientada a conversión.', 1500000),
-            ('servicios', 'Desarrollo web', 'Aplicaciones modernas y rápidas.', 1200000),
-            ('servicios', 'Marketing UX', 'Optimización de experiencia de usuario.', 650000),
-        )
-        for table, name, description, price in seed_catalog:
+        for table, name, description, price in SEED_CATALOGO:
             # Se comprueba antes de insertar porque "name" no es UNIQUE y la
             # forma con WHERE NOT EXISTS no es portable entre SQLite y MySQL.
             existe = conn.execute(f'SELECT 1 FROM {table} WHERE name = ?', (name,)).fetchone()
@@ -223,6 +219,11 @@ def init_db():
                     f'INSERT INTO {table} (name, description, price, active) VALUES (?, ?, ?, 1)',
                     (name, description, price),
                 )
+
+        # El catálogo genérico del avance anterior se oculta de la tienda, que
+        # ahora es de realidad virtual. No se borra: hay ventas que lo citan.
+        for table, name in CATALOGO_RETIRADO:
+            conn.execute(f'UPDATE {table} SET active = 0 WHERE name = ?', (name,))
 
         conn.commit()
 
@@ -446,7 +447,7 @@ def get_resource_list(table: str):
     def handler(current_user: dict[str, Any] = Depends(get_current_user)):
         conn = get_db_connection()
         try:
-            rows = conn.execute(f'SELECT * FROM {table} ORDER BY id DESC').fetchall()
+            rows = conn.execute(f'SELECT * FROM {table}{_solo_publicado(current_user)} ORDER BY id DESC').fetchall()
             return {table.replace('productos', 'products').replace('servicios', 'services'): [dict(row) for row in rows]}
         finally:
             conn.close()
@@ -478,11 +479,16 @@ def public_catalog():
         conn.close()
 
 
+def _solo_publicado(current_user: dict[str, Any]) -> str:
+    """El Cliente solo consulta el catálogo publicado; quien lo administra lo ve entero."""
+    return ' WHERE active = 1' if current_user.get('role') == 'Cliente' else ''
+
+
 @app.get('/api/products')
 def list_products(current_user: dict[str, Any] = Depends(get_current_user)):
     conn = get_db_connection()
     try:
-        rows = conn.execute('SELECT * FROM productos ORDER BY id DESC').fetchall()
+        rows = conn.execute(f'SELECT * FROM productos{_solo_publicado(current_user)} ORDER BY id DESC').fetchall()
         return {'products': [dict(row) for row in rows]}
     finally:
         conn.close()
@@ -552,7 +558,7 @@ def delete_product(product_id: int, current_user: dict[str, Any] = Depends(requi
 def list_services(current_user: dict[str, Any] = Depends(get_current_user)):
     conn = get_db_connection()
     try:
-        rows = conn.execute('SELECT * FROM servicios ORDER BY id DESC').fetchall()
+        rows = conn.execute(f'SELECT * FROM servicios{_solo_publicado(current_user)} ORDER BY id DESC').fetchall()
         return {'services': [dict(row) for row in rows]}
     finally:
         conn.close()

@@ -47,15 +47,24 @@ def _factura_con_venta(conn, factura_id: int):
 @router.post('/', dependencies=[Depends(require_roles('Administrador', 'Empleado'))], include_in_schema=False)
 def generar_factura(payload: FacturaCreate):
     """Emite la factura a partir de una venta ya registrada."""
+    return emitir_factura_de_venta(payload.ventaId)
+
+
+def emitir_factura_de_venta(venta_id: int) -> dict[str, Any]:
+    """Emite la factura de una venta.
+
+    La usan el botón "Generar una factura" del panel y también el pedido del
+    carrito, que factura solo para que el cliente vea su factura al instante.
+    """
     conn = get_db_connection()
     try:
-        venta = conn.execute('SELECT * FROM ventas WHERE id = ?', (payload.ventaId,)).fetchone()
+        venta = conn.execute('SELECT * FROM ventas WHERE id = ?', (venta_id,)).fetchone()
         if venta is None:
             raise HTTPException(status_code=404, detail='La venta no existe.')
         if venta['estado'] == 'Anulada':
             raise HTTPException(status_code=400, detail='No se puede facturar una venta anulada.')
 
-        existente = conn.execute('SELECT id FROM facturas WHERE venta_id = ?', (payload.ventaId,)).fetchone()
+        existente = conn.execute('SELECT id FROM facturas WHERE venta_id = ?', (venta_id,)).fetchone()
         if existente is not None:
             raise HTTPException(status_code=409, detail='Esta venta ya tiene una factura emitida.')
 
@@ -71,7 +80,7 @@ def generar_factura(payload: FacturaCreate):
         )
         factura_id = cursor.lastrowid
 
-        lineas = conn.execute('SELECT * FROM detalle_ventas WHERE venta_id = ? ORDER BY id', (payload.ventaId,)).fetchall()
+        lineas = conn.execute('SELECT * FROM detalle_ventas WHERE venta_id = ? ORDER BY id', (venta_id,)).fetchall()
         for linea in lineas:
             conn.execute(
                 '''

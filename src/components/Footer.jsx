@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 
-const services = ['Desarrollo web', 'Branding digital', 'E-commerce', 'Marketing UX'];
+const services = ['Venta de gafas VR', 'Instalación y configuración', 'Capacitación en realidad virtual', 'Desarrollo de experiencias VR'];
 const quickLinks = [
   { label: 'Inicio', to: '/' },
   { label: 'Productos', to: '/#productos' },

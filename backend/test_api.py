@@ -197,8 +197,41 @@ def test_el_catalogo_publico_no_pide_sesion(client):
     datos = client.get('/api/catalogo')
     assert datos.status_code == 200, datos.text
     cuerpo = datos.json()
-    assert cuerpo['productos'] and cuerpo['servicios']
     assert {'id', 'name', 'description', 'price'} == set(cuerpo['productos'][0])
+    # La tienda es de realidad virtual: veinte visores y veinte servicios.
+    assert len(cuerpo['productos']) >= 20
+    assert len(cuerpo['servicios']) >= 20
+    # El catálogo genérico del avance anterior queda oculto.
+    nombres = {fila['name'] for fila in cuerpo['productos']} | {fila['name'] for fila in cuerpo['servicios']}
+    assert 'Branding Premium' not in nombres and 'Desarrollo web' not in nombres
+
+
+def test_el_cliente_no_ve_el_catalogo_retirado(client, admin):
+    """Quien administra ve todo el catálogo; el cliente solo lo publicado."""
+    client.post('/api/auth/register', json={
+        'name': 'Cata', 'lastName': 'Logo', 'documentType': 'CC', 'documentNumber': '6161616161',
+        'address': 'Calle 4', 'phone': '3006161616', 'email': 'catalogo@simonsc.com', 'password': 'Cliente1234',
+    })
+    token = client.post('/api/auth/login', json={
+        'email': 'catalogo@simonsc.com', 'password': 'Cliente1234',
+    }).json()['token']
+    cliente = {'Authorization': f'Bearer {token}'}
+
+    creado = client.post('/api/products', headers=admin, json={
+        'name': 'Visor descontinuado', 'description': 'Ya no se vende.', 'price': 100000,
+    })
+    assert creado.status_code == 200, creado.text
+    producto_id = creado.json()['id']
+    client.patch(f'/api/products/{producto_id}/status', headers=admin, json={'active': False})
+
+    del_admin = client.get('/api/products', headers=admin).json()['products']
+    del_cliente = client.get('/api/products', headers=cliente).json()['products']
+    assert any(fila['name'] == 'Visor descontinuado' for fila in del_admin)
+    assert all(fila['active'] for fila in del_cliente)
+    assert len(del_cliente) < len(del_admin)
+    # Y tampoco aparece en la tienda pública.
+    publicos = client.get('/api/catalogo').json()['productos']
+    assert all(fila['name'] != 'Visor descontinuado' for fila in publicos)
 
 
 def test_el_cliente_pide_su_carrito_a_su_propio_nombre(client, admin):
@@ -228,6 +261,12 @@ def test_el_cliente_pide_su_carrito_a_su_propio_nombre(client, admin):
     # Y el cliente solo ve esa compra en su historial.
     historial = client.get('/api/ventas', headers=cliente).json()
     assert [fila['numero'] for fila in historial['ventas']] == [venta['numero']]
+
+    # La factura sale con el pedido: nadie tiene que generarla a mano.
+    factura = respuesta.json()['factura']
+    assert factura is not None and factura['total'] == venta['total']
+    mis_facturas = client.get('/api/facturas', headers=cliente).json()['facturas']
+    assert [fila['numero'] for fila in mis_facturas] == [factura['numero']]
 
     # Un artículo inexistente no crea la venta.
     assert client.post('/api/ventas/pedido', headers=cliente, json={
@@ -310,6 +349,25 @@ def test_mysql_no_deja_resultados_sin_leer():
         cursor.fetchone()  # a propósito se lee solo la primera de varias filas
         assert conn._conexion.unread_result is False
         assert conn.execute('SELECT COUNT(*) AS total FROM productos').fetchone()['total'] >= 0
+    finally:
+        conn.close()
+
+
+@pytest.mark.skipif(not core.usa_mysql(), reason='solo aplica cuando se corre contra MySQL')
+def test_mysql_informa_cuantas_filas_toco():
+    """Sin "rowcount" el panel no podía editar ni desactivar nada en MySQL."""
+    conn = core.get_db_connection()
+    try:
+        cursor = conn.execute(
+            'INSERT INTO productos (name, description, price, active) VALUES (?,?,?,1)',
+            ('Producto de prueba rowcount', 'Temporal.', 1000),
+        )
+        creado = cursor.lastrowid
+        # Se escribe el mismo valor a propósito: con FOUND_ROWS cuenta igual.
+        assert conn.execute('UPDATE productos SET active = 1 WHERE id = ?', (creado,)).rowcount == 1
+        assert conn.execute('UPDATE productos SET active = 0 WHERE id = ?', (-1,)).rowcount == 0
+        assert conn.execute('DELETE FROM productos WHERE id = ?', (creado,)).rowcount == 1
+        conn.commit()
     finally:
         conn.close()
 

@@ -5,11 +5,15 @@ import { MemoryRouter } from 'react-router-dom';
 const usuario = { id: 5, name: 'Ana', lastName: 'Pérez', email: 'ana@simonsc.com', role: 'Cliente' };
 
 const catalogo = {
-  productos: [{ id: 1, name: 'Branding Premium', description: 'Identidad visual.', price: 850000 }],
+  productos: [{ id: 1, name: 'SimonC Vision One', description: 'Gafas VR autónomas.', price: 850000 }],
   servicios: [],
 };
 
-const pedido = vi.fn(() => Promise.resolve({ message: 'Pedido registrado correctamente.', venta: { numero: 'VT-0001' } }));
+const pedido = vi.fn(() => Promise.resolve({
+  message: 'Pedido registrado correctamente.',
+  venta: { numero: 'VT-0001' },
+  factura: { numero: 'FV-0001' },
+}));
 
 vi.mock('../services/api', () => ({
   apiRequest: vi.fn(() => Promise.resolve({})),
@@ -56,12 +60,14 @@ describe('Carrito de compras', () => {
     // La ventana del carrito lleva el logo, como todas las emergentes.
     const ventana = await screen.findByRole('dialog');
     expect(ventana.querySelector('img[alt="Logo SimonC"]')).not.toBeNull();
-    expect(screen.getAllByText('Branding Premium').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SimonC Vision One').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /confirmar pedido/i }));
 
     await waitFor(() => expect(pedido).toHaveBeenCalledWith({ items: [{ tipo: 'producto', itemId: 1, cantidad: 1 }] }));
     await waitFor(() => expect(screen.getByText(/VT-0001/)).not.toBeNull());
+    // La factura sale con el pedido, sin que nadie la genere a mano.
+    expect(screen.getByText(/FV-0001/)).not.toBeNull();
   });
 
   it('guarda el carrito en el navegador para que sobreviva a una recarga', async () => {
