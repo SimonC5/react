@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-EMPRESA = 'Agencia SimonC'
+EMPRESA = 'SimonC Realidad Virtual'
 
 
 def _dependencia_faltante(nombre: str, paquete: str) -> HTTPException:

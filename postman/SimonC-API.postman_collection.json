@@ -17,6 +17,10 @@
       "value": "1"
     },
     {
+      "key": "servicioId",
+      "value": ""
+    },
+    {
       "key": "ventaId",
       "value": "1"
     },
@@ -29,12 +33,20 @@
       "value": "1"
     },
     {
+      "key": "conversacionId",
+      "value": "1"
+    },
+    {
       "key": "fecha",
       "value": ""
     },
     {
-      "key": "conversacionId",
-      "value": "1"
+      "key": "correoNuevo",
+      "value": ""
+    },
+    {
+      "key": "documentoNuevo",
+      "value": ""
     }
   ],
   "item": [
@@ -57,10 +69,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Ana\",\n  \"lastName\": \"Prueba\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"12345678\",\n  \"address\": \"Calle 10 #20-30\",\n  \"phone\": \"3001234567\",\n  \"email\": \"ana@example.com\",\n  \"password\": \"Ana12345\"\n}"
+          "raw": "{\n  \"name\": \"Ana\",\n  \"lastName\": \"Prueba\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"{{documentoNuevo}}\",\n  \"address\": \"Calle 10 #20-30\",\n  \"phone\": \"3001234567\",\n  \"email\": \"{{correoNuevo}}\",\n  \"password\": \"Ana12345\"\n}"
         },
         "url": "{{baseUrl}}/usuarios/registro"
-      }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Un correo y un documento nuevos en cada corrida, para que la colección",
+              "// se pueda ejecutar completa tantas veces como haga falta.",
+              "const sufijo = String(Date.now()).slice(-8);",
+              "pm.collectionVariables.set('correoNuevo', 'ana' + sufijo + '@example.com');",
+              "pm.collectionVariables.set('documentoNuevo', sufijo);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Login JWT",
@@ -77,7 +104,19 @@
           "raw": "{\n  \"email\": \"admin@simonsc.com\",\n  \"password\": \"Admin1234\"\n}"
         },
         "url": "{{baseUrl}}/auth/login"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Guarda el JWT para las peticiones protegidas que siguen.",
+              "pm.collectionVariables.set('token', pm.response.json().token);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Usuarios protegidos",
@@ -132,7 +171,20 @@
           "raw": "{\"name\":\"Producto demo\",\"description\":\"Prueba\",\"price\":100000}"
         },
         "url": "{{baseUrl}}/products"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// El producto recién creado es el que modifican y borran las peticiones",
+              "// siguientes, para no tocar el catálogo real.",
+              "pm.collectionVariables.set('resourceId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Productos PUT",
@@ -221,7 +273,18 @@
           "raw": "{\"name\":\"Servicio demo\",\"description\":\"Prueba\",\"price\":200000}"
         },
         "url": "{{baseUrl}}/services"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('servicioId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Servicios PUT",
@@ -241,7 +304,7 @@
           "mode": "raw",
           "raw": "{\"name\":\"Servicio actualizado\",\"description\":\"Edición\",\"price\":220000}"
         },
-        "url": "{{baseUrl}}/services/{{resourceId}}"
+        "url": "{{baseUrl}}/services/{{servicioId}}"
       }
     },
     {
@@ -262,7 +325,7 @@
           "mode": "raw",
           "raw": "{\"active\":false}"
         },
-        "url": "{{baseUrl}}/services/{{resourceId}}/status"
+        "url": "{{baseUrl}}/services/{{servicioId}}/status"
       }
     },
     {
@@ -275,7 +338,7 @@
             "value": "Bearer {{token}}"
           }
         ],
-        "url": "{{baseUrl}}/services/{{resourceId}}"
+        "url": "{{baseUrl}}/services/{{servicioId}}"
       }
     },
     {
@@ -317,7 +380,20 @@
               "mode": "raw",
               "raw": "{\n  \"cliente\": \"Laura Gómez\",\n  \"clienteDocumento\": \"1024567890\",\n  \"observaciones\": \"Venta desde el sitio web\",\n  \"items\": [\n    {\n      \"tipo\": \"producto\",\n      \"itemId\": 1,\n      \"cantidad\": 2,\n      \"descuento\": 0\n    },\n    {\n      \"tipo\": \"servicio\",\n      \"itemId\": 1,\n      \"cantidad\": 1,\n      \"descuento\": 50000\n    }\n  ]\n}"
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// La venta recién registrada es la que se consulta, se cambia de estado y",
+                  "// se factura más abajo.",
+                  "pm.collectionVariables.set('ventaId', pm.response.json().venta.id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Pedido desde el carrito",
@@ -467,9 +543,20 @@
             "url": "{{baseUrl}}/facturas",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ventaId\": 1\n}"
+              "raw": "{\n  \"ventaId\": {{ventaId}}\n}"
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('facturaId', pm.response.json().factura.id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Consultar facturas",
@@ -625,7 +712,18 @@
               "mode": "raw",
               "raw": "{\n  \"tipo\": \"Queja\",\n  \"asunto\": \"Demora en la entrega\",\n  \"descripcion\": \"El pedido llegó dos días después de lo acordado.\"\n}"
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('pqrId', pm.response.json().pqr.id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Listar PQR",
@@ -711,7 +809,18 @@
               "mode": "raw",
               "raw": "{\n  \"mensaje\": \"¿Qué servicios ofrecen?\"\n}"
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('conversacionId', pm.response.json().conversacionId);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Continuar conversación",
@@ -730,7 +839,7 @@
             "url": "{{baseUrl}}/chatbot/mensajes",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mensaje\": \"Quiero poner una queja\",\n  \"conversacionId\": 1\n}"
+              "raw": "{\n  \"mensaje\": \"Quiero poner una queja\",\n  \"conversacionId\": {{conversacionId}}\n}"
             }
           }
         },
@@ -748,6 +857,25 @@
           }
         }
       ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Prueba funcional aplicada a todas las peticiones de la colección.",
+          "const esperado = pm.request.url.getPath().includes('/auth/reset-password') ? [200, 400] : null;",
+          "pm.test('Respuesta correcta (' + pm.request.method + ' ' + pm.request.url.getPath() + ')', function () {",
+          "    if (esperado) { pm.expect(esperado).to.include(pm.response.code); }",
+          "    else { pm.response.to.be.success; }",
+          "});",
+          "pm.test('Responde en menos de 5 segundos', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});"
+        ]
+      }
     }
   ]
 }

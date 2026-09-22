@@ -97,7 +97,7 @@ def reporte_diario_pdf(fecha: Optional[str] = Query(None, description='YYYY-MM-D
     totales = reporte['totales']
     contenido = construir_pdf(
         'Reporte diario de ventas',
-        f"Fecha del reporte: {reporte['fecha']} · Generado el {reporte['generadoEn']} · Identificación: Agencia SimonC",
+        f"Fecha del reporte: {reporte['fecha']} · Generado el {reporte['generadoEn']} · Identificación: SimonC Realidad Virtual",
         ENCABEZADOS,
         [[fila[0], fila[1], fila[2], fila[3], f'{fila[4]:g}', formato_moneda(fila[5]), fila[6]] for fila in _filas_planas(reporte)],
         [
