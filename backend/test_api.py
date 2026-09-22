@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -176,6 +177,27 @@ def test_el_chatbot_explica_el_error_del_proveedor(monkeypatch):
     assert 'models/gemini-inexistente is not found' in motivo
     # La clave nunca viaja al navegador, ni siquiera dentro del error.
     assert 'clave-secreta' not in motivo
+
+
+def test_el_chatbot_contesta_aunque_la_ia_falle(client, admin, monkeypatch):
+    """Si el proveedor de IA falla, el cliente igual recibe una respuesta útil."""
+    import chatbot
+
+    def revienta(historial, catalogo):
+        raise HTTPException(status_code=502, detail='El servicio de IA respondió con error 429.')
+
+    monkeypatch.setenv('IA_API_KEY', 'clave-de-prueba')
+    monkeypatch.setattr(chatbot, '_consultar_ia', revienta)
+
+    respuesta = client.post('/api/chatbot/mensajes', headers=admin, json={'mensaje': 'Quiero poner una queja'})
+
+    assert respuesta.status_code == 200
+    datos = respuesta.json()
+    # La pregunta no se queda sin contestar...
+    assert 'PQR' in datos['respuesta']
+    assert datos['origen'] == 'catalogo'
+    # ...y el motivo técnico sigue disponible para diagnosticar.
+    assert '429' in datos['aviso']
 
 
 def test_el_chatbot_no_expone_la_api_key(client, admin):

@@ -131,7 +131,9 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
             *historial,
         ],
         'temperature': 0.4,
-        'max_tokens': 900,
+        # Holgado a propósito: algunos modelos gastan parte del cupo en razonar
+        # antes de escribir, y si se queda corto devuelven la respuesta vacía.
+        'max_tokens': 2000,
     }).encode('utf-8')
 
     peticion = urllib.request.Request(
@@ -261,9 +263,19 @@ def enviar_mensaje(payload: MensajeEntrada, usuario: dict[str, Any] = Depends(ge
         ]
         catalogo = _catalogo(conn)
 
+        aviso = ''
         if api_key():
-            respuesta = _consultar_ia(historial, catalogo)
-            origen = 'ia'
+            try:
+                respuesta = _consultar_ia(historial, catalogo)
+                origen = 'ia'
+            except HTTPException as fallo:
+                # Si el proveedor de IA falla, el cliente igual merece una
+                # respuesta: se contesta con el catálogo y el motivo técnico
+                # viaja aparte, para poder diagnosticarlo sin dejar la pregunta
+                # sin contestar.
+                respuesta = _respuesta_local(texto, catalogo)
+                origen = 'catalogo'
+                aviso = str(fallo.detail)
         else:
             respuesta = _respuesta_local(texto, catalogo)
             origen = 'catalogo'
@@ -275,6 +287,9 @@ def enviar_mensaje(payload: MensajeEntrada, usuario: dict[str, Any] = Depends(ge
         conn.execute('UPDATE conversaciones SET updated_at = ? WHERE id = ?', (now_iso(), conversacion_id))
         conn.commit()
 
-        return {'conversacionId': conversacion_id, 'respuesta': respuesta, 'origen': origen}
+        salida = {'conversacionId': conversacion_id, 'respuesta': respuesta, 'origen': origen}
+        if aviso:
+            salida['aviso'] = aviso
+        return salida
     finally:
         conn.close()

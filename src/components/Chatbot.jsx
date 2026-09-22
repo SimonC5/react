@@ -20,6 +20,10 @@ function Chatbot() {
   const [conversacionId, setConversacionId] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
+  // Motivo por el que la IA no pudo responder. El cliente igual recibe la
+  // respuesta del catálogo, así que a él no se le muestra el detalle técnico:
+  // solo lo ve quien administra la tienda, que es quien puede arreglarlo.
+  const [aviso, setAviso] = useState('');
   const finRef = useRef(null);
 
   useEffect(() => {
@@ -37,11 +41,13 @@ function Chatbot() {
     setTexto('');
     setEnviando(true);
     setError('');
+    setAviso('');
 
     try {
       const data = await chatbotApi.enviar(pregunta, conversacionId);
       setConversacionId(data.conversacionId);
       setMensajes((actuales) => [...actuales, { rol: 'asistente', contenido: data.respuesta }]);
+      setAviso(data.aviso || '');
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -80,6 +86,7 @@ function Chatbot() {
             ))}
             {enviando && <p className="text-xs text-slate-500">El asistente está escribiendo...</p>}
             {error && <p className="text-xs text-red-300">{error}</p>}
+            {aviso && user.role !== 'Cliente' && <p className="text-xs text-amber-300">{aviso}</p>}
             <div ref={finRef} />
           </div>
 
