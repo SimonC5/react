@@ -43,7 +43,31 @@ IA_PRESUPUESTO = float(os.getenv('IA_PRESUPUESTO', '55'))
 # Errores que valen la pena reintentar con otro modelo: saturación, cupo por
 # minuto, caídas pasajeras del proveedor y modelos que esa clave no tiene.
 CODIGOS_REINTENTABLES = {404, 408, 429, 500, 502, 503, 504}
+# Modelos de reserva de Google AI Studio, que es el proveedor que usa el
+# proyecto. Si alguien deja un solo modelo escrito a mano (en la pestaña
+# Environment del hosting, por ejemplo) y justo ese está saturado o tarda de
+# más, sin reserva la pregunta se queda sin respuesta de IA aunque la misma
+# clave tenga otros modelos libres. Van primero los livianos, que contestan
+# rápido.
+MODELOS_DE_RESERVA = (
+    'gemini-2.0-flash',
+    'gemini-flash-lite-latest',
+    'gemini-flash-latest',
+    'gemini-2.5-flash',
+)
 HISTORIAL_MAXIMO = 10
+
+
+def _cadena_de_modelos() -> list[str]:
+    """Modelos a intentar, en orden: los configurados y luego los de reserva.
+
+    La reserva solo se agrega cuando el proveedor es Google, porque son nombres
+    suyos; con otro proveedor se respeta exactamente lo que diga ``IA_MODEL``.
+    """
+    cadena = list(IA_MODELOS)
+    if 'generativelanguage.googleapis.com' in IA_API_URL:
+        cadena += [modelo for modelo in MODELOS_DE_RESERVA if modelo not in cadena]
+    return cadena
 
 INSTRUCCIONES = (
     'Eres el asistente virtual de SimonC, una tienda de gafas y servicios de realidad virtual. '
@@ -230,7 +254,7 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     inicio = time.monotonic()
     intentos: list[str] = []
 
-    for indice, modelo in enumerate(IA_MODELOS):
+    for indice, modelo in enumerate(_cadena_de_modelos()):
         if indice and time.monotonic() - inicio > IA_PRESUPUESTO:
             intentos.append('se acabó el tiempo antes de probar los demás')
             break
@@ -247,7 +271,7 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     # un modelo saturado de uno que tarda de más, y son problemas distintos.
     raise HTTPException(
         status_code=502,
-        detail='La IA no pudo responder. Intentos: ' + ' · '.join(intentos),
+        detail=('Esta respuesta salió del catálogo porque la IA no contestó. Intentos: ' + ' · '.join(intentos)),
     )
 
 

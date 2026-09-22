@@ -202,6 +202,39 @@ def test_el_chatbot_cambia_de_modelo_cuando_el_primero_esta_saturado(monkeypatch
     assert intentados == ['saturado', 'de-reserva']
 
 
+def test_hay_modelos_de_reserva_aunque_este_configurado_uno_solo(monkeypatch):
+    """Escribir un solo modelo a mano no debe dejar al chatbot sin IA."""
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        if modelo == 'gemini-flash-latest':
+            raise chatbot.FalloDeIA('no contestó a tiempo (20 s) o no se pudo contactar.', reintentable=True)
+        return 'Con gusto te ayudo.'
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['gemini-flash-latest'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    assert chatbot._consultar_ia([], 'catálogo') == 'Con gusto te ayudo.'
+    # Se intentó el configurado y después uno de reserva, sin repetirlo.
+    assert intentados[0] == 'gemini-flash-latest'
+    assert len(intentados) == 2
+    assert intentados[1] in chatbot.MODELOS_DE_RESERVA
+
+
+def test_los_modelos_de_reserva_son_solo_para_google(monkeypatch):
+    """Con otro proveedor, los nombres de Google no significan nada."""
+    import chatbot
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['llama-3.1-8b-instant'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://api.groq.com/openai/v1/chat/completions')
+
+    assert chatbot._cadena_de_modelos() == ['llama-3.1-8b-instant']
+
+
 def test_el_aviso_dice_que_paso_con_cada_modelo(monkeypatch):
     """Un solo motivo no distingue un modelo saturado de uno que tarda de más."""
     import chatbot
