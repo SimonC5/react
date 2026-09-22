@@ -1,3 +1,20 @@
+"""Esquemas Pydantic de validación de peticiones y respuestas.
+
+Aquí están los de autenticación, usuarios y catálogo. Los del quinto avance
+viven junto al router que los usa, para que cada módulo se lea completo:
+
+- Ventas y pedidos del carrito: ``ventas.py`` (``VentaItem``, ``VentaCreate``,
+  ``VentaEstado``, ``PedidoItem``, ``PedidoCreate``).
+- Facturación: ``facturas.py`` (``FacturaCreate``, ``FacturaEstado``).
+- PQR: ``pqr.py`` (``PqrCreate``, ``PqrUpdate``).
+- Chatbot con IA: ``chatbot.py`` (``MensajeEntrada``).
+- Recuperación de contraseña: ``recuperacion.py`` (``SolicitudRecuperacion``,
+  ``CambioDeClave``).
+
+Los modelos ORM (SQLAlchemy) de todas las entidades, incluidas las nuevas, están
+en ``models.py``.
+"""
+
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
