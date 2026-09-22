@@ -179,6 +179,53 @@ def test_el_chatbot_explica_el_error_del_proveedor(monkeypatch):
     assert 'clave-secreta' not in motivo
 
 
+def test_el_chatbot_cambia_de_modelo_cuando_el_primero_esta_saturado(monkeypatch):
+    """Un 503 del modelo de moda no debe tumbar la respuesta: hay más modelos."""
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        if modelo == 'saturado':
+            raise chatbot.FalloDeIA(
+                'El servicio de Inteligencia Artificial respondió con error 503. '
+                'Dice: This model is currently experiencing high demand.',
+                reintentable=True,
+            )
+        return 'Con gusto te ayudo.'
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['saturado', 'de-reserva'])
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    assert chatbot._consultar_ia([], 'catálogo') == 'Con gusto te ayudo.'
+    assert intentados == ['saturado', 'de-reserva']
+
+
+def test_el_chatbot_no_insiste_si_la_clave_esta_mala(monkeypatch):
+    """Un 400 por clave inválida no se arregla probando otro modelo."""
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        raise chatbot.FalloDeIA(
+            'El servicio de Inteligencia Artificial respondió con error 400. '
+            'Dice: Please pass a valid API key',
+            reintentable=False,
+        )
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['uno', 'dos', 'tres'])
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    with pytest.raises(HTTPException) as fallo:
+        chatbot._consultar_ia([], 'catálogo')
+
+    assert 'valid API key' in fallo.value.detail
+    assert intentados == ['uno']
+
+
 def test_el_chatbot_contesta_aunque_la_ia_falle(client, admin, monkeypatch):
     """Si el proveedor de IA falla, el cliente igual recibe una respuesta útil."""
     import chatbot

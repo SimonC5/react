@@ -8,6 +8,7 @@ real del catálogo para que el módulo siga siendo usable.
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Optional
@@ -25,8 +26,20 @@ except ImportError:
 router = APIRouter(prefix='/api/chatbot', tags=['chatbot'])
 
 IA_API_URL = os.getenv('IA_API_URL', 'https://api.openai.com/v1/chat/completions')
-IA_MODEL = os.getenv('IA_MODEL', 'gpt-4o-mini')
+
+# ``IA_MODEL`` admite varios modelos separados por coma. Se intentan en orden:
+# los planes gratuitos devuelven 503 ("high demand") cuando el modelo de moda
+# está saturado, y en ese caso otro modelo de la misma clave suele contestar sin
+# problema. Con un solo modelo escrito, la lista tiene un solo elemento.
+IA_MODELOS = [modelo.strip() for modelo in os.getenv('IA_MODEL', 'gpt-4o-mini').split(',') if modelo.strip()]
+IA_MODEL = IA_MODELOS[0] if IA_MODELOS else 'gpt-4o-mini'
 IA_TIMEOUT = float(os.getenv('IA_TIMEOUT', '20'))
+# Segundos que se pueden gastar en total probando modelos, para no dejar al
+# cliente esperando mientras se recorre la lista entera.
+IA_PRESUPUESTO = float(os.getenv('IA_PRESUPUESTO', '35'))
+# Errores que valen la pena reintentar con otro modelo: saturación, cupo por
+# minuto, caídas pasajeras del proveedor y modelos que esa clave no tiene.
+CODIGOS_REINTENTABLES = {404, 408, 429, 500, 502, 503, 504}
 HISTORIAL_MAXIMO = 10
 
 INSTRUCCIONES = (
@@ -122,10 +135,19 @@ def _motivo_del_proveedor(exc: urllib.error.HTTPError) -> str:
     return f'Dice: {crudo}' if crudo else ''
 
 
-def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
-    """Llama al proveedor de IA con el historial de la conversación."""
+class FalloDeIA(Exception):
+    """Un intento fallido contra el proveedor, con el motivo ya legible."""
+
+    def __init__(self, motivo: str, reintentable: bool):
+        super().__init__(motivo)
+        self.motivo = motivo
+        self.reintentable = reintentable
+
+
+def _pedir_al_modelo(modelo: str, historial: list[dict[str, str]], catalogo: str) -> str:
+    """Un intento contra un modelo concreto del proveedor."""
     cuerpo = json.dumps({
-        'model': IA_MODEL,
+        'model': modelo,
         'messages': [
             {'role': 'system', 'content': f'{INSTRUCCIONES}\n\nCatálogo disponible:\n{catalogo}'},
             *historial,
@@ -146,24 +168,50 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
         with urllib.request.urlopen(peticion, timeout=IA_TIMEOUT) as respuesta:
             datos = json.loads(respuesta.read().decode('utf-8'))
     except urllib.error.HTTPError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                f'El servicio de Inteligencia Artificial respondió con error {exc.code}. '
-                f'{_motivo_del_proveedor(exc)}'
-            ).strip(),
+        motivo = f'El servicio de Inteligencia Artificial respondió con error {exc.code}.'
+        detalle = _motivo_del_proveedor(exc)
+        raise FalloDeIA(
+            f'{motivo} {detalle}'.strip(),
+            reintentable=exc.code in CODIGOS_REINTENTABLES,
         ) from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise HTTPException(
-            status_code=502,
-            detail='No fue posible contactar el servicio de Inteligencia Artificial.',
+        raise FalloDeIA(
+            'No fue posible contactar el servicio de Inteligencia Artificial.',
+            reintentable=True,
         ) from exc
 
     opciones = datos.get('choices') or []
     contenido = (opciones[0].get('message', {}).get('content') if opciones else '') or ''
     if not contenido.strip():
-        raise HTTPException(status_code=502, detail='El servicio de Inteligencia Artificial no devolvió respuesta.')
+        raise FalloDeIA(
+            'El servicio de Inteligencia Artificial no devolvió respuesta.',
+            reintentable=True,
+        )
     return contenido.strip()
+
+
+def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
+    """Pide la respuesta al proveedor, probando los modelos de ``IA_MODEL`` en orden.
+
+    Los planes gratuitos se saturan: el modelo más pedido devuelve 503 y otro de
+    la misma clave contesta a la primera. Por eso, ante un error pasajero se
+    pasa al siguiente modelo en lugar de rendirse. Si el error es de la clave o
+    de la petición, no tiene sentido insistir y se corta de una vez.
+    """
+    inicio = time.monotonic()
+    ultimo = 'No hay ningún modelo de Inteligencia Artificial configurado.'
+
+    for indice, modelo in enumerate(IA_MODELOS):
+        if indice and time.monotonic() - inicio > IA_PRESUPUESTO:
+            break
+        try:
+            return _pedir_al_modelo(modelo, historial, catalogo)
+        except FalloDeIA as fallo:
+            ultimo = fallo.motivo
+            if not fallo.reintentable:
+                break
+
+    raise HTTPException(status_code=502, detail=ultimo)
 
 
 @router.get('/estado')
