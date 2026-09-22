@@ -66,7 +66,22 @@ describe('Register modal', () => {
     fireEvent.click(screen.getByRole('button', { name: /registrarse/i }));
 
     expect(screen.getByText(/nombre es obligatorio/i)).not.toBeNull();
-    expect(screen.getAllByText(/máximo 80 caracteres/i)).toHaveLength(2);
+    // Los máximos de cada campo, tal como los pidió tomas.
+    const limites = {
+      'register-name': 20,
+      'register-lastName': 20,
+      'register-documentNumber': 12,
+      'register-address': 50,
+      'register-phone': 15,
+      'register-email': 30,
+      'register-password': 20,
+      'register-confirmPassword': 20,
+    };
+    for (const [id, maximo] of Object.entries(limites)) {
+      expect(document.getElementById(id).maxLength).toBe(maximo);
+    }
+    // Y que el formulario los muestre: cuatro campos comparten el de 20.
+    expect(screen.getAllByText(/máximo 20 caracteres/i)).toHaveLength(4);
   });
 });
 

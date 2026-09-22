@@ -58,6 +58,7 @@ function ResetPassword() {
         <form className="space-y-5" onSubmit={handleSubmit}>
           <Input
             id="reset-password"
+            maxLength={20}
             label="Nueva contraseña"
             type="password"
             value={password}
@@ -68,6 +69,7 @@ function ResetPassword() {
           />
           <Input
             id="reset-confirmation"
+            maxLength={20}
             label="Repetir contraseña"
             type="password"
             value={confirmation}

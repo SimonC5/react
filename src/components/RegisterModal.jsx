@@ -142,8 +142,8 @@ function RegisterModal({ isOpen, onClose, onRegistered }) {
 
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
           <div className="grid gap-4 md:grid-cols-2">
-            <Input id="register-name" name="name" label="Nombre" value={form.name} onChange={handleChange} error={errors.name} placeholder="Tu nombre" maxLength={80} />
-            <Input id="register-lastName" name="lastName" label="Apellido" value={form.lastName} onChange={handleChange} error={errors.lastName} placeholder="Tu apellido" maxLength={80} />
+            <Input id="register-name" name="name" label="Nombre" value={form.name} onChange={handleChange} error={errors.name} placeholder="Tu nombre" maxLength={20} />
+            <Input id="register-lastName" name="lastName" label="Apellido" value={form.lastName} onChange={handleChange} error={errors.lastName} placeholder="Tu apellido" maxLength={20} />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -152,16 +152,16 @@ function RegisterModal({ isOpen, onClose, onRegistered }) {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Input id="register-address" name="address" label="Dirección" value={form.address} onChange={handleChange} error={errors.address} placeholder="Calle 123 #45-67" maxLength={150} />
+            <Input id="register-address" name="address" label="Dirección" value={form.address} onChange={handleChange} error={errors.address} placeholder="Calle 123 #45-67" maxLength={50} />
             <Input id="register-phone" name="phone" label="Teléfono" value={form.phone} onChange={handleChange} error={errors.phone} placeholder="+57 300 123 4567" maxLength={15} inputMode="tel" />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Input id="register-email" name="email" label="Correo electrónico" type="email" value={form.email} onChange={handleChange} error={errors.email} placeholder="nombre@correo.com" maxLength={120} />
-            <Input id="register-password" name="password" label="Contraseña" type="password" value={form.password} onChange={handleChange} error={errors.password} placeholder="Mínimo 8 caracteres" maxLength={100} hint="Obligatorio: mínimo 8 caracteres, con letras y números." />
+            <Input id="register-email" name="email" label="Correo electrónico" type="email" value={form.email} onChange={handleChange} error={errors.email} placeholder="nombre@correo.com" maxLength={30} />
+            <Input id="register-password" name="password" label="Contraseña" type="password" value={form.password} onChange={handleChange} error={errors.password} placeholder="Mínimo 8 caracteres" maxLength={20} hint="Obligatorio: mínimo 8 caracteres, con letras y números." />
           </div>
 
-          <Input id="register-confirmPassword" name="confirmPassword" label="Confirmación de contraseña" type="password" value={form.confirmPassword} onChange={handleChange} error={errors.confirmPassword} placeholder="Repite tu contraseña" maxLength={100} hint="Escribe exactamente la misma contraseña de arriba." />
+          <Input id="register-confirmPassword" name="confirmPassword" label="Confirmación de contraseña" type="password" value={form.confirmPassword} onChange={handleChange} error={errors.confirmPassword} placeholder="Repite tu contraseña" maxLength={20} hint="Escribe exactamente la misma contraseña de arriba." />
 
           <PasswordTips password={form.password} />
 
