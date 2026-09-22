@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from typing import Any, Optional
 
@@ -80,16 +81,6 @@ app.add_middleware(
 
 for modulo in (ventas, facturas, reportes, dashboard, pqr, chatbot, recuperacion):
     app.include_router(modulo.router)
-
-class UserCreate(BaseModel):
-    name: str
-    lastName: str
-    documentType: str = 'CC'
-    documentNumber: str
-    address: str
-    phone: str
-    email: EmailStr
-    password: str
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -272,7 +263,7 @@ def health():
 
 
 @app.post('/api/auth/register')
-def register(payload: UserCreate):
+def register(payload: UserCreateSchema):
     if not payload.name or not payload.lastName or not payload.address or not payload.documentNumber:
         raise HTTPException(status_code=400, detail='Revisa los datos del usuario.')
     if len(payload.password) < 8 or not any(ch.isalpha() for ch in payload.password) or not any(ch.isdigit() for ch in payload.password):
@@ -309,7 +300,7 @@ def register(payload: UserCreate):
 
 @app.post('/api/usuarios/registro')
 def register_user_alias(payload: UserCreateSchema):
-    return register(UserCreate(**payload.model_dump()))
+    return register(payload)
 
 
 @app.post('/api/auth/login')
@@ -366,6 +357,10 @@ def create_user(payload: dict[str, Any], current_user: dict[str, Any] = Depends(
         raise HTTPException(status_code=400, detail='Datos de usuario incompletos o inválidos.')
     if len(str(payload.get('password'))) < 8:
         raise HTTPException(status_code=400, detail='La contraseña debe tener al menos 8 caracteres.')
+    # La misma regla que el registro público: este endpoint recibe un diccionario
+    # suelto, así que el documento hay que revisarlo aquí a mano.
+    if not re.fullmatch(r'\d{6,12}', str(payload.get('documentNumber', ''))):
+        raise HTTPException(status_code=400, detail='El documento debe contener entre 6 y 12 dígitos numéricos.')
 
     conn = get_db_connection()
     try:

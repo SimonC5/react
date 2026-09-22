@@ -90,7 +90,10 @@ function RegisterModal({ isOpen, onClose, onRegistered }) {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    const nextForm = { ...form, [name]: value };
+    // El documento solo admite números: lo que no lo sea se descarta al
+    // escribirlo, en vez de dejar que se vea en el campo y rechazarlo después.
+    const limpio = name === 'documentNumber' ? value.replace(/\D/g, '') : value;
+    const nextForm = { ...form, [name]: limpio };
     setForm(nextForm);
     setErrors(validateForm(nextForm));
     setSuccessMessage('');

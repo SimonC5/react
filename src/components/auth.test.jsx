@@ -83,6 +83,16 @@ describe('Register modal', () => {
     // Y que el formulario los muestre: cuatro campos comparten el de 20.
     expect(screen.getAllByText(/máximo 20 caracteres/i)).toHaveLength(4);
   });
+
+  it('el número de documento descarta lo que no sea un número', () => {
+    renderLogin();
+
+    fireEvent.click(screen.getByRole('button', { name: /crear una cuenta/i }));
+    const documento = screen.getByLabelText(/número de documento/i);
+    fireEvent.change(documento, { target: { value: '12ab34-56 78' } });
+
+    expect(documento.value).toBe('12345678');
+  });
 });
 
 describe('Recuperación de cuenta', () => {

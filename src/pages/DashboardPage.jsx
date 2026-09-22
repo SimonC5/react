@@ -487,7 +487,7 @@ function DashboardPage({ role }) {
               <form onSubmit={saveUser} className="grid gap-3 md:grid-cols-4">
                 <input required maxLength="80" placeholder="Nombre" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="field" />
                 <input required maxLength="80" placeholder="Apellido" value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} className="field" />
-                <input required placeholder="Documento" value={form.documentNumber} disabled={Boolean(editingId)} onChange={(event) => setForm({ ...form, documentNumber: event.target.value })} className="field" />
+                <input required placeholder="Documento" inputMode="numeric" maxLength="12" value={form.documentNumber} disabled={Boolean(editingId)} onChange={(event) => setForm({ ...form, documentNumber: event.target.value.replace(/\D/g, '') })} className="field" />
                 <input required type="email" placeholder="Correo" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="field" />
                 <input required={!editingId} type="password" minLength="8" placeholder="Contraseña" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="field" />
                 <input required placeholder="Dirección" value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} className="field" />

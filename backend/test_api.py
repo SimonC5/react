@@ -352,11 +352,28 @@ def test_el_chatbot_no_expone_la_api_key(client, admin):
     assert 'sk-' not in cuerpo
 
 
+def test_el_documento_solo_acepta_numeros(client, admin):
+    """Ni el registro público ni el panel deben dejar pasar letras."""
+    registro = client.post('/api/auth/register', json={
+        'name': 'Con', 'lastName': 'Letras', 'documentType': 'CC', 'documentNumber': '12AB5678',
+        'address': 'Calle 3 #45-67', 'phone': '3001234567', 'email': 'con.letras@simonsc.com', 'password': 'Cliente1234',
+    })
+    assert registro.status_code == 422, registro.text
+
+    desde_el_panel = client.post('/api/users', headers=admin, json={
+        'name': 'Con', 'lastName': 'Letras', 'documentType': 'CC', 'documentNumber': '12AB5678',
+        'address': 'Calle 3 #45-67', 'phone': '3001234567', 'email': 'panel.letras@simonsc.com',
+        'password': 'Cliente1234', 'role': 'Cliente',
+    })
+    assert desde_el_panel.status_code == 400, desde_el_panel.text
+    assert 'dígitos' in desde_el_panel.json()['detail']
+
+
 def test_el_dashboard_es_solo_del_administrador(client, admin):
     """Esconder el botón no basta: la ruta también tiene que estar cerrada."""
     client.post('/api/auth/register', json={
         'name': 'Otro', 'lastName': 'Cliente', 'documentType': 'CC', 'documentNumber': '8888888888',
-        'address': 'Calle 2', 'phone': '3009998877', 'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
+        'address': 'Calle 2 #34-56', 'phone': '3009998877', 'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
     })
     token = client.post('/api/auth/login', json={
         'email': 'otro.cliente@simonsc.com', 'password': 'Cliente1234',
@@ -376,7 +393,7 @@ def test_el_dashboard_es_solo_del_administrador(client, admin):
 def test_permisos_por_rol(client, admin):
     client.post('/api/auth/register', json={
         'name': 'Cliente', 'lastName': 'Demo', 'documentType': 'CC', 'documentNumber': '9999999999',
-        'address': 'Calle 1', 'phone': '3001112233', 'email': 'cliente.demo@simonsc.com', 'password': 'Cliente1234',
+        'address': 'Calle 1 #23-45', 'phone': '3001112233', 'email': 'cliente.demo@simonsc.com', 'password': 'Cliente1234',
     })
     token = client.post('/api/auth/login', json={
         'email': 'cliente.demo@simonsc.com', 'password': 'Cliente1234',
@@ -407,7 +424,7 @@ def test_el_cliente_no_ve_el_catalogo_retirado(client, admin):
     """Quien administra ve todo el catálogo; el cliente solo lo publicado."""
     client.post('/api/auth/register', json={
         'name': 'Cata', 'lastName': 'Logo', 'documentType': 'CC', 'documentNumber': '6161616161',
-        'address': 'Calle 4', 'phone': '3006161616', 'email': 'catalogo@simonsc.com', 'password': 'Cliente1234',
+        'address': 'Calle 4 #56-78', 'phone': '3006161616', 'email': 'catalogo@simonsc.com', 'password': 'Cliente1234',
     })
     token = client.post('/api/auth/login', json={
         'email': 'catalogo@simonsc.com', 'password': 'Cliente1234',
@@ -435,7 +452,7 @@ def test_el_cliente_pide_su_carrito_a_su_propio_nombre(client, admin):
     """El pedido toma el comprador del token y el precio del catálogo."""
     client.post('/api/auth/register', json={
         'name': 'Carro', 'lastName': 'Cliente', 'documentType': 'CC', 'documentNumber': '7070707070',
-        'address': 'Calle 3', 'phone': '3007070707', 'email': 'carrito@simonsc.com', 'password': 'Cliente1234',
+        'address': 'Calle 3 #45-67', 'phone': '3007070707', 'email': 'carrito@simonsc.com', 'password': 'Cliente1234',
     })
     token = client.post('/api/auth/login', json={
         'email': 'carrito@simonsc.com', 'password': 'Cliente1234',
