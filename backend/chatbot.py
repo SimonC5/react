@@ -30,7 +30,8 @@ IA_TIMEOUT = float(os.getenv('IA_TIMEOUT', '20'))
 HISTORIAL_MAXIMO = 10
 
 INSTRUCCIONES = (
-    'Eres el asistente virtual de la Agencia SimonC. Respondes en español, de forma breve y amable. '
+    'Eres el asistente virtual de SimonC, una tienda de gafas y servicios de realidad virtual. '
+    'Respondes en español, de forma breve y amable. '
     'Ayudas a resolver preguntas frecuentes, orientas sobre los productos y servicios, explicas el proceso '
     'de compra y, cuando el cliente tiene una queja o un reclamo, le indicas que puede radicar una PQR desde '
     'su panel. No inventes precios ni promociones: usa únicamente la información del catálogo que recibes.'
@@ -80,6 +81,38 @@ def _respuesta_local(mensaje: str, catalogo: str) -> str:
     )
 
 
+def _motivo_del_proveedor(exc: urllib.error.HTTPError) -> str:
+    """Explica en una línea por qué falló el proveedor de IA.
+
+    Un número de error suelto no dice nada: lo habitual es que el modelo de
+    ``IA_MODEL`` no exista para esa clave, o que ``IA_API_URL`` apunte a otro
+    proveedor. El texto del proveedor lo aclara, así que se reenvía recortado y
+    con la clave tachada por si acaso viniera repetida en la respuesta.
+    """
+    try:
+        crudo = exc.read().decode('utf-8', 'replace')
+    except Exception:  # noqa: BLE001 - si no se puede leer, basta con el código
+        return ''
+
+    try:
+        datos = json.loads(crudo)
+        if isinstance(datos, list):
+            datos = datos[0] if datos else {}
+        error = datos.get('error') if isinstance(datos, dict) else None
+        mensaje = error.get('message') if isinstance(error, dict) else None
+        crudo = mensaje or crudo
+    except (json.JSONDecodeError, AttributeError, IndexError):
+        pass
+
+    crudo = ' '.join(crudo.split())
+    clave = api_key()
+    if clave:
+        crudo = crudo.replace(clave, '***')
+    if len(crudo) > 200:
+        crudo = f'{crudo[:200]}...'
+    return f'Dice: {crudo}' if crudo else ''
+
+
 def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     """Llama al proveedor de IA con el historial de la conversación."""
     cuerpo = json.dumps({
@@ -104,7 +137,10 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     except urllib.error.HTTPError as exc:
         raise HTTPException(
             status_code=502,
-            detail=f'El servicio de Inteligencia Artificial respondió con error {exc.code}.',
+            detail=(
+                f'El servicio de Inteligencia Artificial respondió con error {exc.code}. '
+                f'{_motivo_del_proveedor(exc)}'
+            ).strip(),
         ) from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise HTTPException(

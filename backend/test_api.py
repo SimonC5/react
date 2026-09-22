@@ -7,6 +7,7 @@ Se ejecutan sobre una base de datos temporal, así que no tocan
     python -m pytest backend
 """
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -152,6 +153,29 @@ def test_chatbot_responde_y_guarda_la_conversacion(client, admin):
     })
     mensajes = client.get(f'/api/chatbot/conversaciones/{conversacion_id}', headers=admin).json()['mensajes']
     assert len(mensajes) == 4
+
+
+def test_el_chatbot_explica_el_error_del_proveedor(monkeypatch):
+    """Un 404 a secas no dice nada: hay que reenviar el motivo, sin la clave."""
+    import io
+    import urllib.error
+
+    import chatbot
+
+    cuerpo = json.dumps([{'error': {
+        'code': 404,
+        'message': 'models/gemini-inexistente is not found for API version v1beta. clave-secreta',
+    }}]).encode('utf-8')
+    fallo = urllib.error.HTTPError(
+        chatbot.IA_API_URL, 404, 'Not Found', {}, io.BytesIO(cuerpo),
+    )
+
+    monkeypatch.setenv('IA_API_KEY', 'clave-secreta')
+    motivo = chatbot._motivo_del_proveedor(fallo)
+
+    assert 'models/gemini-inexistente is not found' in motivo
+    # La clave nunca viaja al navegador, ni siquiera dentro del error.
+    assert 'clave-secreta' not in motivo
 
 
 def test_el_chatbot_no_expone_la_api_key(client, admin):
