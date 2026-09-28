@@ -8,8 +8,10 @@ Se ejecutan sobre una base de datos temporal, así que no tocan
 """
 
 import json
+import socket
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -19,6 +21,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import core  # noqa: E402
+import correo  # noqa: E402
 
 _TMP = Path(tempfile.mkdtemp())
 core.DATA_DIR = _TMP
@@ -875,3 +878,168 @@ def test_un_cliente_no_puede_responder_pqr(client):
 
     negado = client.post(f"/api/pqr/{solicitud['id']}/responder", headers=cliente, json={'respuesta': 'Yo me respondo'})
     assert negado.status_code == 403
+
+
+VARIABLES_DE_CORREO = ('SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM', 'SMTP_USE_TLS', 'SMTP_USE_SSL')
+
+
+def _sin_correo_configurado(monkeypatch):
+    """Deja el entorno como el de un computador sin servidor de correo."""
+    for nombre in VARIABLES_DE_CORREO:
+        monkeypatch.delenv(nombre, raising=False)
+
+
+def _servidor_de_correo_falso(recibidos):
+    """Un SMTP mínimo en un puerto libre, para probar el envío de verdad.
+
+    Habla lo suficiente para que ``smtplib`` complete un envío: saludo, AUTH
+    PLAIN, DATA y QUIT. Guarda en ``recibidos`` el correo tal como llegó.
+    """
+    escucha = socket.socket()
+    escucha.bind(('127.0.0.1', 0))
+    escucha.listen(1)
+    puerto = escucha.getsockname()[1]
+
+    def atender():
+        conexion, _ = escucha.accept()
+        with conexion, escucha:
+            lector = conexion.makefile('rb')
+            conexion.sendall(b'220 prueba ESMTP\r\n')
+            cuerpo, en_cuerpo = [], False
+            while True:
+                linea = lector.readline()
+                if not linea:
+                    break
+                if en_cuerpo:
+                    if linea.strip() == b'.':
+                        en_cuerpo = False
+                        conexion.sendall(b'250 recibido\r\n')
+                    else:
+                        cuerpo.append(linea)
+                    continue
+                orden = linea.upper()
+                if orden.startswith(b'EHLO'):
+                    conexion.sendall(b'250-prueba\r\n250 AUTH PLAIN\r\n')
+                elif orden.startswith(b'AUTH'):
+                    conexion.sendall(b'235 autenticado\r\n')
+                elif orden.startswith(b'DATA'):
+                    en_cuerpo = True
+                    conexion.sendall(b'354 escribe el mensaje\r\n')
+                elif orden.startswith(b'QUIT'):
+                    conexion.sendall(b'221 adios\r\n')
+                    break
+                else:
+                    conexion.sendall(b'250 listo\r\n')
+            recibidos.append(b''.join(cuerpo))
+
+    hilo = threading.Thread(target=atender, daemon=True)
+    hilo.start()
+    return puerto, hilo
+
+
+def _apuntar_al_servidor_falso(monkeypatch, puerto):
+    _sin_correo_configurado(monkeypatch)
+    monkeypatch.setenv('SMTP_HOST', '127.0.0.1')
+    monkeypatch.setenv('SMTP_PORT', str(puerto))
+    monkeypatch.setenv('SMTP_USER', 'tienda@gmail.com')
+    monkeypatch.setenv('SMTP_PASSWORD', 'clavedeaplicacion')
+    # El servidor de prueba no tiene certificado, así que no se negocia TLS.
+    monkeypatch.setenv('SMTP_USE_TLS', 'false')
+
+
+def test_el_servidor_de_correo_se_deduce_del_dominio(monkeypatch):
+    """Con Gmail basta el usuario y la contraseña de aplicación."""
+    _sin_correo_configurado(monkeypatch)
+    assert 'SMTP_USER' in correo.revisar_configuracion()
+
+    monkeypatch.setenv('SMTP_USER', 'tienda@gmail.com')
+    assert 'SMTP_PASSWORD' in correo.revisar_configuracion()
+
+    monkeypatch.setenv('SMTP_PASSWORD', 'clavedeaplicacion')
+    assert correo.revisar_configuracion() == ''
+    assert correo.servidor_de_correo() == ('smtp.gmail.com', 587)
+    assert correo.remitente() == 'SimonC Realidad Virtual <tienda@gmail.com>'
+    assert correo.hay_correo_configurado() is True
+
+    # Un dominio propio sí necesita que le digan a qué servidor conectarse.
+    monkeypatch.setenv('SMTP_USER', 'tienda@midominio.co')
+    assert 'SMTP_HOST' in correo.revisar_configuracion()
+    monkeypatch.setenv('SMTP_HOST', 'correo.midominio.co')
+    monkeypatch.setenv('SMTP_PORT', '2525')
+    assert correo.servidor_de_correo() == ('correo.midominio.co', 2525)
+    assert correo.revisar_configuracion() == ''
+
+
+def test_el_enlace_de_recuperacion_sale_por_correo(client, monkeypatch, capsys):
+    """Con servidor de correo configurado el enlace viaja en el mensaje."""
+    direccion = 'porcorreo@simonsc.com'
+    alta = client.post('/api/auth/register', json={
+        'name': 'Por', 'lastName': 'Correo', 'documentType': 'CC', 'documentNumber': '5151515151',
+        'address': 'Carrera 9 numero 8-70', 'phone': '3009998877',
+        'email': direccion, 'password': 'Clave1234', 'confirmPassword': 'Clave1234',
+    })
+    assert alta.status_code == 200, alta.text
+
+    recibidos = []
+    puerto, hilo = _servidor_de_correo_falso(recibidos)
+    _apuntar_al_servidor_falso(monkeypatch, puerto)
+
+    respuesta = client.post('/api/auth/recover', json={'email': direccion})
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()['correoConfigurado'] is True
+
+    hilo.join(timeout=10)
+    assert recibidos, 'el servidor de correo no recibió nada'
+    mensaje = recibidos[0]
+    assert b'reset-password' in mensaje
+    # Va en dos versiones: texto plano y HTML con el botón.
+    assert b'multipart/alternative' in mensaje
+    assert direccion.encode() in mensaje
+    # Si el correo salió, el enlace ya no se imprime en la consola.
+    assert 'reset-password?token=' not in capsys.readouterr().out
+
+
+def test_el_panel_reporta_el_estado_del_correo(client, admin, monkeypatch):
+    """El administrador ve qué falta sin tener que leer la consola."""
+    _sin_correo_configurado(monkeypatch)
+    datos = client.get('/api/auth/correo-estado', headers=admin).json()
+    assert datos['configurado'] is False
+    assert 'SMTP_USER' in datos['motivo']
+
+    monkeypatch.setenv('SMTP_USER', 'tienda@gmail.com')
+    monkeypatch.setenv('SMTP_PASSWORD', 'clavedeaplicacion')
+    datos = client.get('/api/auth/correo-estado', headers=admin).json()
+    assert datos['configurado'] is True
+    assert datos['servidor'] == 'smtp.gmail.com:587'
+    assert datos['remitente'] == 'SimonC Realidad Virtual <tienda@gmail.com>'
+
+
+def test_la_prueba_de_correo_llega_y_es_solo_del_administrador(client, admin, monkeypatch):
+    recibidos = []
+    puerto, hilo = _servidor_de_correo_falso(recibidos)
+    _apuntar_al_servidor_falso(monkeypatch, puerto)
+
+    respuesta = client.post('/api/auth/probar-correo', headers=admin, json={'email': 'destino@gmail.com'})
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()['enviado'] is True
+    hilo.join(timeout=10)
+    assert recibidos and b'destino@gmail.com' in recibidos[0]
+
+    cliente = _cuenta_de_cliente(client, 'ana.correo@correo.com', '7788990011')
+    assert client.post('/api/auth/probar-correo', headers=cliente, json={'email': 'x@gmail.com'}).status_code == 403
+    assert client.post('/api/auth/probar-correo', json={'email': 'x@gmail.com'}).status_code == 401
+    assert client.get('/api/auth/correo-estado', headers=cliente).status_code == 403
+
+
+def test_sin_configurar_la_prueba_explica_que_falta(client, admin, monkeypatch):
+    """No se le dice "no se pudo" sin decir por qué."""
+    _sin_correo_configurado(monkeypatch)
+    respuesta = client.post('/api/auth/probar-correo', headers=admin, json={'email': 'destino@gmail.com'})
+    assert respuesta.status_code == 200
+    datos = respuesta.json()
+    assert datos['enviado'] is False
+    assert 'SMTP_USER' in datos['message']
+
+    # Y la pantalla de recuperación avisa que el enlace no se está enviando.
+    recuperar = client.post('/api/auth/recover', json={'email': 'nadie@simonsc.com'}).json()
+    assert recuperar['correoConfigurado'] is False

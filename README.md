@@ -38,7 +38,8 @@ Backend (`backend/.env`, a partir de `backend/.env.example`):
 | `FRONTEND_URL`, `CORS_ORIGINS` | Dominios autorizados por CORS en producción. |
 | `IA_API_KEY` | Clave del proveedor de IA que usa el chatbot. |
 | `IA_API_URL`, `IA_MODEL`, `IA_TIMEOUT` | Endpoint, modelo y tiempo de espera del proveedor. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS` | Envío del correo de recuperación de contraseña. |
+| `SMTP_USER`, `SMTP_PASSWORD` | Correo desde el que salen los mensajes y su contraseña. Con Gmail, Outlook o Yahoo no hace falta nada más: el servidor se deduce del dominio. Con Gmail la contraseña es una **contraseña de aplicación** de 16 letras ([myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)), no la de la cuenta. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USE_TLS`, `SMTP_USE_SSL` | Opcionales, solo para un proveedor que no sea de los conocidos. |
 
 `backend/core.py` carga `backend/.env` al arrancar, así que basta con escribir las variables
 en ese archivo. Las variables reales del entorno tienen prioridad, que es lo que usa el despliegue.
@@ -57,7 +58,8 @@ Si no hay clave configurada, el chatbot sigue respondiendo con la información r
 | Dashboards | Cards de indicadores, gráfico de barras y gráfico lineal por día, semana o mes, con filtros y diferenciados por rol. |
 | PQR | Radicación y seguimiento de peticiones, quejas y reclamos con estados Pendiente, En proceso, Respondida y Cerrada. |
 | Chatbot | Asistente en el sitio que responde a través de FastAPI usando el servicio de IA configurado. |
-| Recuperación de contraseña | Enlace de un solo uso con vigencia de 60 minutos, enviado por correo. Si no hay SMTP configurado el enlace se imprime en la consola del backend, suficiente para desarrollo. El token se guarda solo como hash y nunca viaja en la respuesta de la API. |
+| Recuperación de contraseña | Enlace de un solo uso con vigencia de 60 minutos, enviado por correo en texto y HTML. Si no hay SMTP configurado el enlace se imprime en la consola del backend y la pantalla lo dice, en vez de prometer un correo que no sale. El token se guarda solo como hash y nunca viaja en la respuesta de la API. |
+| Servidor de correo | El administrador ve en el panel (Dashboard → Servidor de correo) si está configurado, qué falta si no, y puede enviarse un correo de prueba. |
 
 Los Dashboards no tienen datos escritos a mano: React consume los endpoints de FastAPI y
 FastAPI calcula los indicadores y las series con consultas a la base de datos.

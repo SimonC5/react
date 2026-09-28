@@ -8,11 +8,11 @@ from pydantic import BaseModel
 try:
     from .core import get_current_user, get_db_connection, require_roles
     from .comercial import ESTADOS_PQR, TIPOS_PQR, next_number, now_iso, pqr_row
-    from .correo import enviar_correo, hay_correo_configurado
+    from .correo import enviar_correo_detalle, hay_correo_configurado
 except ImportError:
     from core import get_current_user, get_db_connection, require_roles
     from comercial import ESTADOS_PQR, TIPOS_PQR, next_number, now_iso, pqr_row
-    from correo import enviar_correo, hay_correo_configurado
+    from correo import enviar_correo_detalle, hay_correo_configurado
 
 router = APIRouter(prefix='/api/pqr', tags=['pqr'])
 
@@ -184,8 +184,10 @@ def responder_pqr(pqr_id: int, payload: PqrRespuesta):
 
     destinatario = (fila['cliente_email'] or '').strip()
     cuerpo = _correo_de_la_respuesta(fila, respuesta)
-    enviado = enviar_correo(destinatario, f'Respuesta a tu solicitud {fila["radicado"]} - SimonC', cuerpo)
+    resultado = enviar_correo_detalle(destinatario, f'Respuesta a tu solicitud {fila["radicado"]} - SimonC', cuerpo)
+    enviado = resultado.enviado
     if not enviado:
+        print(f'[pqr] No salió el correo de {fila["radicado"]}: {resultado.motivo}')
         print(f'[pqr] Respuesta de {fila["radicado"]} para {destinatario or "(sin correo)"}:\n{cuerpo}')
 
     if enviado:
@@ -195,6 +197,8 @@ def responder_pqr(pqr_id: int, payload: PqrRespuesta):
     elif not hay_correo_configurado():
         mensaje = 'Respuesta guardada. El cliente la ve en su panel (no hay servidor de correo configurado).'
     else:
-        mensaje = 'Respuesta guardada, pero el correo no se pudo enviar. El cliente la ve en su panel.'
+        # Quien ve este mensaje es administrador o empleado, así que el motivo
+        # técnico le sirve para arreglarlo en lugar de quedarse adivinando.
+        mensaje = f'Respuesta guardada, pero el correo no se pudo enviar: {resultado.motivo} El cliente la ve en su panel.'
 
     return {'message': mensaje, 'correoEnviado': enviado, 'pqr': pqr_row(actualizada)}

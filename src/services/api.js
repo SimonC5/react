@@ -135,6 +135,9 @@ export const authApi = {
   me: () => apiRequest('/auth/me'),
   recover: (email) => apiRequest('/auth/recover', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (body) => apiRequest('/auth/reset-password', { method: 'POST', body: JSON.stringify(body) }),
+  // Diagnóstico del servidor de correo, solo para el administrador.
+  correoEstado: () => apiRequest('/auth/correo-estado'),
+  probarCorreo: (email) => apiRequest('/auth/probar-correo', { method: 'POST', body: JSON.stringify({ email }) }),
 };
 
 export const ventasApi = {

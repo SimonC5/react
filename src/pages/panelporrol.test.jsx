@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../services/api', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ products: [], services: [] })),
-  authApi: { me: vi.fn(() => Promise.resolve({ user: { id: 1, name: 'Ana', role: 'Cliente' } })) },
+  authApi: {
+    me: vi.fn(() => Promise.resolve({ user: { id: 1, name: 'Ana', role: 'Cliente' } })),
+    correoEstado: vi.fn(() => Promise.resolve({ configurado: true, motivo: '', servidor: 'smtp.gmail.com:587', remitente: 'SimonC <tienda@gmail.com>' })),
+  },
   ventasApi: { listar: vi.fn(() => Promise.resolve({ ventas: [], resumen: { cantidad: 0, total: 0 } })) },
   pqrApi: { listar: vi.fn(() => Promise.resolve({ pqr: [] })) },
   facturasApi: { listar: vi.fn(() => Promise.resolve({ facturas: [] })) },

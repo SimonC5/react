@@ -8,6 +8,9 @@ function RecoverPassword({ onBack }) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  // El servidor dice si tiene correo configurado. Si no lo tiene, no se le
+  // promete al usuario un correo que nunca va a llegar.
+  const [sinCorreo, setSinCorreo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
@@ -23,6 +26,7 @@ function RecoverPassword({ onBack }) {
     setEmail(nextValue);
     setError(validateEmail(nextValue));
     setSuccess('');
+    setSinCorreo(false);
   };
 
   const handleSubmit = async (event) => {
@@ -32,7 +36,12 @@ function RecoverPassword({ onBack }) {
 
     if (!nextError) {
       setSubmitting(true);
-      try { const result = await authApi.recover(email); setSuccess(result.message); setEmail(''); }
+      try {
+        const result = await authApi.recover(email);
+        setSuccess(result.message);
+        setSinCorreo(result.correoConfigurado === false);
+        setEmail('');
+      }
       catch (requestError) { setError(requestError.message); }
       finally { setSubmitting(false); }
     }
@@ -46,8 +55,13 @@ function RecoverPassword({ onBack }) {
         <h2 className="mt-2 text-2xl font-bold text-slate-900">Recuperar contraseña</h2>
       </div>
 
-      <p className="mb-4 text-sm text-slate-600">
+      <p className="mb-2 text-sm text-slate-600">
         Se le enviará un correo electrónico para recuperar la cuenta perdida.
+      </p>
+
+      <p className="mb-4 text-sm text-slate-500">
+        Escribe el correo de tu cuenta y te llegará un enlace para crear una contraseña nueva.
+        El enlace vence en una hora y solo sirve una vez.
       </p>
 
       <form className="space-y-5" onSubmit={handleSubmit} noValidate>
@@ -64,7 +78,19 @@ function RecoverPassword({ onBack }) {
 
         {success && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-            {success}
+            <p>{success}</p>
+            {!sinCorreo && (
+              <p className="mt-1 text-emerald-600">
+                Si no lo ves en unos minutos, revisa la carpeta de correo no deseado.
+              </p>
+            )}
+          </div>
+        )}
+
+        {sinCorreo && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            El servidor de correo todavía no está configurado, así que el enlace no se envía.
+            El administrador puede activarlo desde el panel, en Dashboard → Servidor de correo.
           </div>
         )}
 

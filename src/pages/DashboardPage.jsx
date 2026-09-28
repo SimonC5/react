@@ -4,6 +4,7 @@ import logo from '../assets/logo.svg';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../services/api';
 import AnalyticsModule from '../components/panel/AnalyticsModule';
+import EmailModule from '../components/panel/EmailModule';
 import SalesModule from '../components/panel/SalesModule';
 import InvoicesModule from '../components/panel/InvoicesModule';
 import ReportsModule from '../components/panel/ReportsModule';
@@ -547,7 +548,12 @@ function DashboardPage({ role }) {
             </div>
           )}
 
-          {seccion === 'dashboard' && esAdministrador && <AnalyticsModule rol={role} />}
+          {seccion === 'dashboard' && esAdministrador && (
+            <>
+              <AnalyticsModule rol={role} />
+              <EmailModule />
+            </>
+          )}
 
           {seccion === 'ventas' && (
             <SalesModule puedeRegistrar={gestionaComercial} titulo={esCliente ? 'Mis compras' : 'Ventas'} />
