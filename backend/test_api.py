@@ -249,6 +249,72 @@ def test_hay_modelos_de_reserva_aunque_este_configurado_uno_solo(monkeypatch):
     assert intentados[1] in chatbot.MODELOS_DE_RESERVA
 
 
+def test_el_chatbot_usa_el_modelo_que_sugiere_el_proveedor(monkeypatch):
+    """Cuando Google jubila un modelo, nombra el reemplazo dentro del error 404.
+
+    Leerlo y probarlo enseguida es lo que evita que el chatbot se quede sin IA
+    cada vez que el proveedor retira un modelo de la lista configurada.
+    """
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        if modelo == 'gemini-viejo':
+            raise chatbot.FalloDeIA(
+                'error 404. Dice: This model models/gemini-viejo is no longer available. '
+                'Please update your code to use models/gemini-nuevo for the latest features.',
+                reintentable=True,
+            )
+        return 'Con gusto te ayudo.'
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['gemini-viejo'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    assert chatbot._consultar_ia([], 'catálogo') == 'Con gusto te ayudo.'
+    # El sugerido se prueba de inmediato, antes que los de reserva.
+    assert intentados == ['gemini-viejo', 'gemini-nuevo']
+
+
+def test_el_modelo_sugerido_no_es_el_que_acaba_de_fallar():
+    """El aviso del proveedor nombra dos modelos: el que falló y su reemplazo."""
+    import chatbot
+
+    motivo = (
+        'error 404. Dice: This model models/gemini-2.0-flash is no longer available. '
+        'Please update your code to use models/gemini-3.8-flash for the latest features.'
+    )
+    assert chatbot._modelo_sugerido(motivo, 'gemini-2.0-flash') == 'gemini-3.8-flash'
+    # Sin sugerencia no se inventa ninguna.
+    assert chatbot._modelo_sugerido('error 503. Dice: high demand.', 'gemini-2.0-flash') == ''
+
+
+def test_ningun_modelo_se_intenta_dos_veces(monkeypatch):
+    """La sugerencia no debe hacer que se repita un modelo ya probado."""
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        raise chatbot.FalloDeIA(
+            f'error 404. Dice: This model models/{modelo} is no longer available. '
+            'Please update your code to use models/gemini-flash-latest instead.',
+            reintentable=True,
+        )
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['uno', 'dos'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    with pytest.raises(HTTPException):
+        chatbot._consultar_ia([], 'catálogo')
+
+    assert len(intentados) == len(set(intentados))
+
+
 def test_los_modelos_de_reserva_son_solo_para_google(monkeypatch):
     """Con otro proveedor, los nombres de Google no significan nada."""
     import chatbot

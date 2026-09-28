@@ -8,6 +8,7 @@ real del catálogo para que el módulo siga siendo usable.
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -50,10 +51,9 @@ CODIGOS_REINTENTABLES = {404, 408, 429, 500, 502, 503, 504}
 # clave tenga otros modelos libres. Van primero los livianos, que contestan
 # rápido.
 MODELOS_DE_RESERVA = (
-    'gemini-2.0-flash',
     'gemini-flash-lite-latest',
     'gemini-flash-latest',
-    'gemini-2.5-flash',
+    'gemini-3.8-flash',
 )
 HISTORIAL_MAXIMO = 10
 
@@ -192,6 +192,22 @@ def _motivo_del_proveedor(exc: urllib.error.HTTPError) -> str:
     return f'Dice: {crudo}' if crudo else ''
 
 
+def _modelo_sugerido(motivo: str, modelo_probado: str) -> str:
+    """Modelo de repuesto que el propio proveedor nombra al jubilar uno.
+
+    Google retira modelos cada tanto y lo avisa dentro del error 404: «This
+    model models/gemini-2.0-flash is no longer available. Please update your
+    code to use models/gemini-3.8-flash». Leer ese nombre y probarlo enseguida
+    es lo que evita tener que venir a editar la lista de reserva cada vez que
+    jubilan uno. El primer ``models/...`` del texto es el que acaba de fallar,
+    así que se descarta.
+    """
+    for candidato in re.findall(r'models/([A-Za-z0-9._-]+)', motivo):
+        if candidato != modelo_probado:
+            return candidato
+    return ''
+
+
 class FalloDeIA(Exception):
     """Un intento fallido contra el proveedor, con el motivo ya legible."""
 
@@ -253,17 +269,30 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     """
     inicio = time.monotonic()
     intentos: list[str] = []
+    por_probar = _cadena_de_modelos()
+    ya_probados: set[str] = set()
 
-    for indice, modelo in enumerate(_cadena_de_modelos()):
+    indice = 0
+    while por_probar:
+        modelo = por_probar.pop(0)
+        if modelo in ya_probados:
+            continue
+        ya_probados.add(modelo)
         if indice and time.monotonic() - inicio > IA_PRESUPUESTO:
             intentos.append('se acabó el tiempo antes de probar los demás')
             break
+        indice += 1
         try:
             return _pedir_al_modelo(modelo, historial, catalogo)
         except FalloDeIA as fallo:
             intentos.append(f'{modelo}: {fallo.motivo}')
             if not fallo.reintentable:
                 break
+            # Si el proveedor jubiló este modelo y nombró su reemplazo, ese va
+            # de primero: es el que con más probabilidad contesta.
+            sugerido = _modelo_sugerido(fallo.motivo, modelo)
+            if sugerido and sugerido not in ya_probados:
+                por_probar.insert(0, sugerido)
 
     if not intentos:
         raise HTTPException(status_code=502, detail='No hay ningún modelo de Inteligencia Artificial configurado.')
