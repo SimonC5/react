@@ -8,11 +8,17 @@ from pydantic import BaseModel
 
 try:
     from .core import get_current_user, get_db_connection, require_roles
-    from .comercial import ESTADOS_FACTURA, detalle_row, factura_row, next_number, now_iso, parse_date, venta_row
+    from .comercial import (
+        ESTADOS_FACTURA, detalle_row, factura_row, la_venta_es_del_cliente,
+        next_number, now_iso, parse_date, venta_row,
+    )
     from .documentos import construir_factura_pdf
 except ImportError:
     from core import get_current_user, get_db_connection, require_roles
-    from comercial import ESTADOS_FACTURA, detalle_row, factura_row, next_number, now_iso, parse_date, venta_row
+    from comercial import (
+        ESTADOS_FACTURA, detalle_row, factura_row, la_venta_es_del_cliente,
+        next_number, now_iso, parse_date, venta_row,
+    )
     from documentos import construir_factura_pdf
 
 router = APIRouter(prefix='/api/facturas', tags=['facturas'])
@@ -164,7 +170,7 @@ def obtener_factura(factura_id: int, current_user: dict[str, Any] = Depends(get_
         if factura is None:
             raise HTTPException(status_code=404, detail='La factura no existe.')
         venta = conn.execute('SELECT * FROM ventas WHERE id = ?', (factura['venta_id'],)).fetchone()
-        if current_user.get('role') == 'Cliente' and venta['cliente_id'] != current_user.get('id'):
+        if current_user.get('role') == 'Cliente' and not la_venta_es_del_cliente(venta, current_user):
             raise HTTPException(status_code=403, detail='No tienes permisos para consultar esta factura.')
         return {
             'factura': {**factura_row(factura), 'detalle': _detalle_factura(conn, factura_id)},
@@ -183,7 +189,7 @@ def descargar_factura(factura_id: int, current_user: dict[str, Any] = Depends(ge
         if factura is None:
             raise HTTPException(status_code=404, detail='La factura no existe.')
         venta = conn.execute('SELECT * FROM ventas WHERE id = ?', (factura['venta_id'],)).fetchone()
-        if current_user.get('role') == 'Cliente' and venta['cliente_id'] != current_user.get('id'):
+        if current_user.get('role') == 'Cliente' and not la_venta_es_del_cliente(venta, current_user):
             raise HTTPException(status_code=403, detail='No tienes permisos para descargar esta factura.')
         datos = factura_row(factura)
         contenido = construir_factura_pdf(datos, _detalle_factura(conn, factura_id), venta_row(venta))

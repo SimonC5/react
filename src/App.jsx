@@ -46,7 +46,7 @@ function Layout() {
   return (
     <div className="min-h-screen bg-transparent text-slate-100">
       <Header />
-      <main className={`mx-auto w-full px-4 py-8 sm:px-6 lg:px-8 ${enPanel ? 'max-w-[110rem]' : 'max-w-7xl'}`}>
+      <main className={`mx-auto w-full px-4 pb-8 sm:px-6 lg:px-8 ${enPanel ? 'max-w-[110rem] pt-3' : 'max-w-7xl pt-8'}`}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/productos" element={<ProductsPage />} />

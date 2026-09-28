@@ -438,9 +438,9 @@ function DashboardPage({ role }) {
   };
 
   return (
-    <section className="space-y-6 py-8">
+    <section className="space-y-6 pb-8">
       <div className="mb-6 flex flex-col gap-6 lg:flex-row">
-        <aside className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:w-[260px] lg:shrink-0 lg:self-start lg:overflow-y-auto">
+        <aside className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-5 lg:sticky lg:top-[4.75rem] lg:h-[calc(100vh-5.75rem)] lg:w-[260px] lg:shrink-0 lg:self-start lg:overflow-y-auto">
           <div className="mb-6 flex items-center gap-3">
             <img src={logo} alt="Logo SimonC" className="h-12 w-12 rounded-full ring-2 ring-cyan-400/50" />
             <div>

@@ -10,6 +10,7 @@ try:
     from .core import get_current_user, get_db_connection, require_roles
     from .comercial import (
         ESTADOS_VENTA,
+        la_venta_es_del_cliente,
         TIPOS_ITEM,
         detalle_row,
         money,
@@ -23,6 +24,7 @@ except ImportError:
     from core import get_current_user, get_db_connection, require_roles
     from comercial import (
         ESTADOS_VENTA,
+        la_venta_es_del_cliente,
         TIPOS_ITEM,
         detalle_row,
         money,
@@ -281,7 +283,7 @@ def obtener_venta(venta_id: int, current_user: dict[str, Any] = Depends(get_curr
         row = conn.execute('SELECT * FROM ventas WHERE id = ?', (venta_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail='La venta no existe.')
-        if current_user.get('role') == 'Cliente' and row['cliente_id'] != current_user.get('id'):
+        if current_user.get('role') == 'Cliente' and not la_venta_es_del_cliente(row, current_user):
             raise HTTPException(status_code=403, detail='No tienes permisos para consultar esta venta.')
         return {'venta': {**venta_row(row), 'detalle': _load_detalle(conn, venta_id)}}
     finally:

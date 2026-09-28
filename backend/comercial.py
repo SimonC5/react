@@ -151,6 +151,22 @@ def parse_date(value: Optional[str], end_of_day: bool = False) -> Optional[str]:
     return f'{day.date().isoformat()} 23:59:59' if end_of_day else f'{day.date().isoformat()} 00:00:00'
 
 
+def la_venta_es_del_cliente(venta, usuario: dict[str, Any]) -> bool:
+    """¿Esta venta le pertenece al Cliente que está consultando?
+
+    El historial empareja por ``cliente_id`` **o** por documento, porque una
+    venta registrada en el mostrador no tiene cuenta asociada y el comprador
+    puede crearse la cuenta después; el documento es único por persona. El
+    detalle y la factura tienen que usar la misma regla: si no, la venta sale
+    en "Mis compras" pero abrirla responde 403.
+    """
+    datos = dict(venta)
+    if datos.get('cliente_id') is not None and datos.get('cliente_id') == usuario.get('id'):
+        return True
+    documento = (usuario.get('document_number') or '').strip()
+    return bool(documento) and (datos.get('cliente_documento') or '').strip() == documento
+
+
 def venta_row(row: sqlite3.Row) -> dict[str, Any]:
     data = dict(row)
     return {

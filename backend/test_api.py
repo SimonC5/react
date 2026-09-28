@@ -754,3 +754,70 @@ def test_mysql_crea_la_base_si_no_existe(monkeypatch):
     cursor.execute(f'DROP DATABASE IF EXISTS `{efimera}`')
     cursor.close()
     servidor.close()
+
+
+def _cuenta_de_cliente(client, correo, documento):
+    """Crea un Cliente y devuelve su cabecera de autorización."""
+    client.post('/api/auth/register', json={
+        'name': 'Ana', 'lastName': 'Ramírez', 'documentType': 'CC',
+        'documentNumber': documento, 'phone': '3001234567',
+        'address': 'Calle 45 numero 12-30', 'email': correo,
+        'password': 'Cliente1234',
+    })
+    respuesta = client.post('/api/auth/login', json={'email': correo, 'password': 'Cliente1234'})
+    assert respuesta.status_code == 200, respuesta.text
+    return {'Authorization': f"Bearer {respuesta.json()['token']}"}
+
+
+def _venta_de_mostrador(client, admin, documento):
+    """Venta registrada en el panel a nombre de un documento, sin cuenta."""
+    productos = client.get('/api/products', headers=admin).json()['products']
+    respuesta = client.post('/api/ventas', headers=admin, json={
+        'cliente': 'Comprador de mostrador',
+        'clienteDocumento': documento,
+        'items': [{'tipo': 'producto', 'itemId': productos[0]['id'], 'cantidad': 1}],
+    })
+    assert respuesta.status_code == 200, respuesta.text
+    return respuesta.json()['venta']
+
+
+def test_el_cliente_puede_abrir_la_venta_que_ve_en_su_historial(client, admin):
+    """Una venta de mostrador se empareja por documento: el detalle también.
+
+    El historial lista las ventas del Cliente por ``cliente_id`` o por
+    documento, pero el detalle solo miraba ``cliente_id``: la venta salía en
+    "Mis compras" y al pulsar "Detalle" respondía 403.
+    """
+    documento = '1122334455'
+    cliente = _cuenta_de_cliente(client, 'ana.mostrador@correo.com', documento)
+    venta = _venta_de_mostrador(client, admin, documento)
+
+    historial = client.get('/api/ventas', headers=cliente).json()['ventas']
+    assert any(item['id'] == venta['id'] for item in historial), 'debería salir en su historial'
+
+    detalle = client.get(f"/api/ventas/{venta['id']}", headers=cliente)
+    assert detalle.status_code == 200, detalle.text
+
+
+def test_el_cliente_baja_el_pdf_de_la_factura_que_ve(client, admin):
+    """La factura de esa misma venta tiene que abrirse y descargarse igual."""
+    documento = '2233445566'
+    cliente = _cuenta_de_cliente(client, 'ana.factura@correo.com', documento)
+    venta = _venta_de_mostrador(client, admin, documento)
+
+    emitida = client.post('/api/facturas', headers=admin, json={'ventaId': venta['id']})
+    assert emitida.status_code == 200, emitida.text
+    factura_id = emitida.json()['factura']['id']
+
+    assert client.get(f'/api/facturas/{factura_id}', headers=cliente).status_code == 200
+    pdf = client.get(f'/api/facturas/{factura_id}/pdf', headers=cliente)
+    assert pdf.status_code == 200
+    assert pdf.content[:4] == b'%PDF'
+
+
+def test_un_cliente_sigue_sin_ver_las_ventas_de_otro(client, admin):
+    """Emparejar por documento no debe abrirle la puerta a nadie más."""
+    intruso = _cuenta_de_cliente(client, 'luis.ajeno@correo.com', '9988776655')
+    ajena = _venta_de_mostrador(client, admin, '5555555555')
+
+    assert client.get(f"/api/ventas/{ajena['id']}", headers=intruso).status_code == 403
