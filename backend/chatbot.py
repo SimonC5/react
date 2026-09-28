@@ -44,6 +44,17 @@ IA_PRESUPUESTO = float(os.getenv('IA_PRESUPUESTO', '55'))
 # Errores que valen la pena reintentar con otro modelo: saturación, cupo por
 # minuto, caídas pasajeras del proveedor y modelos que esa clave no tiene.
 CODIGOS_REINTENTABLES = {404, 408, 429, 500, 502, 503, 504}
+# De esos, los que son del momento y no del modelo: el mismo modelo puede
+# contestar bien un rato después. Un 404 no está aquí porque el modelo no
+# existe para esa clave y esperar no lo hace aparecer.
+CODIGOS_PASAJEROS = {408, 429, 500, 502, 503, 504}
+# Vueltas completas a la lista de modelos. El plan gratuito de Google avisa que
+# la saturación "usually is temporary", y en la práctica basta con esperar unos
+# segundos y volver a pedir: con una sola vuelta una racha corta de 503 dejaba
+# la pregunta sin respuesta de IA aunque no hubiera nada roto.
+IA_VUELTAS = max(1, int(os.getenv('IA_VUELTAS', '2')))
+# Espera antes de volver a intentar con los modelos que estaban saturados.
+IA_ESPERA_ENTRE_VUELTAS = float(os.getenv('IA_ESPERA_ENTRE_VUELTAS', '2'))
 # Modelos de reserva de Google AI Studio, que es el proveedor que usa el
 # proyecto. Si alguien deja un solo modelo escrito a mano (en la pestaña
 # Environment del hosting, por ejemplo) y justo ese está saturado o tarda de
@@ -211,10 +222,13 @@ def _modelo_sugerido(motivo: str, modelo_probado: str) -> str:
 class FalloDeIA(Exception):
     """Un intento fallido contra el proveedor, con el motivo ya legible."""
 
-    def __init__(self, motivo: str, reintentable: bool):
+    def __init__(self, motivo: str, reintentable: bool, pasajero: bool = False):
         super().__init__(motivo)
         self.motivo = motivo
+        # ¿Vale la pena seguir con el siguiente modelo?
         self.reintentable = reintentable
+        # ¿Vale la pena volver a este mismo modelo dentro de un rato?
+        self.pasajero = pasajero
 
 
 def _pedir_al_modelo(modelo: str, historial: list[dict[str, str]], catalogo: str) -> str:
@@ -245,17 +259,19 @@ def _pedir_al_modelo(modelo: str, historial: list[dict[str, str]], catalogo: str
         raise FalloDeIA(
             f'error {exc.code}. {_motivo_del_proveedor(exc)}'.strip(),
             reintentable=exc.code in CODIGOS_REINTENTABLES,
+            pasajero=exc.code in CODIGOS_PASAJEROS,
         ) from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise FalloDeIA(
             f'no contestó a tiempo ({IA_TIMEOUT:.0f} s) o no se pudo contactar.',
             reintentable=True,
+            pasajero=True,
         ) from exc
 
     opciones = datos.get('choices') or []
     contenido = (opciones[0].get('message', {}).get('content') if opciones else '') or ''
     if not contenido.strip():
-        raise FalloDeIA('devolvió una respuesta vacía.', reintentable=True)
+        raise FalloDeIA('devolvió una respuesta vacía.', reintentable=True, pasajero=True)
     return contenido.strip()
 
 
@@ -266,38 +282,77 @@ def _consultar_ia(historial: list[dict[str, str]], catalogo: str) -> str:
     la misma clave contesta a la primera. Por eso, ante un error pasajero se
     pasa al siguiente modelo en lugar de rendirse. Si el error es de la clave o
     de la petición, no tiene sentido insistir y se corta de una vez.
+
+    Cuando la racha de saturación pilla a todos los modelos a la vez, se espera
+    unos segundos y se vuelve a empezar: el propio proveedor dice que esos picos
+    son pasajeros, y una segunda vuelta suele bastar.
     """
     inicio = time.monotonic()
-    intentos: list[str] = []
+    # Un renglón por modelo con lo último que le pasó, para que el aviso no se
+    # repita cuando se dan varias vueltas.
+    motivos: dict[str, str] = {}
+    veces: dict[str, int] = {}
+    corte_definitivo = False
+
+    def queda_tiempo() -> bool:
+        return time.monotonic() - inicio < IA_PRESUPUESTO
+
     por_probar = _cadena_de_modelos()
-    ya_probados: set[str] = set()
-
-    indice = 0
-    while por_probar:
-        modelo = por_probar.pop(0)
-        if modelo in ya_probados:
-            continue
-        ya_probados.add(modelo)
-        if indice and time.monotonic() - inicio > IA_PRESUPUESTO:
-            intentos.append('se acabó el tiempo antes de probar los demás')
+    for vuelta in range(IA_VUELTAS):
+        if not por_probar:
             break
-        indice += 1
-        try:
-            return _pedir_al_modelo(modelo, historial, catalogo)
-        except FalloDeIA as fallo:
-            intentos.append(f'{modelo}: {fallo.motivo}')
-            if not fallo.reintentable:
+        if vuelta:
+            if not queda_tiempo():
+                motivos['(tiempo)'] = 'se acabó el tiempo antes de volver a intentar'
                 break
-            # Si el proveedor jubiló este modelo y nombró su reemplazo, ese va
-            # de primero: es el que con más probabilidad contesta.
-            sugerido = _modelo_sugerido(fallo.motivo, modelo)
-            if sugerido and sugerido not in ya_probados:
-                por_probar.insert(0, sugerido)
+            time.sleep(IA_ESPERA_ENTRE_VUELTAS)
 
-    if not intentos:
+        pendientes = list(por_probar)
+        ya_probados: set[str] = set()
+        pasajeros: list[str] = []
+
+        while pendientes:
+            modelo = pendientes.pop(0)
+            if modelo in ya_probados:
+                continue
+            ya_probados.add(modelo)
+            if veces and not queda_tiempo():
+                motivos['(tiempo)'] = 'se acabó el tiempo antes de probar los demás'
+                corte_definitivo = True
+                break
+            veces[modelo] = veces.get(modelo, 0) + 1
+            try:
+                return _pedir_al_modelo(modelo, historial, catalogo)
+            except FalloDeIA as fallo:
+                motivos[modelo] = fallo.motivo
+                if fallo.pasajero:
+                    pasajeros.append(modelo)
+                if not fallo.reintentable:
+                    corte_definitivo = True
+                    break
+                # Si el proveedor jubiló este modelo y nombró su reemplazo, ese
+                # va de primero: es el que con más probabilidad contesta.
+                sugerido = _modelo_sugerido(fallo.motivo, modelo)
+                if sugerido and sugerido not in ya_probados:
+                    pendientes.insert(0, sugerido)
+                    if sugerido not in por_probar:
+                        por_probar.append(sugerido)
+
+        if corte_definitivo:
+            break
+        # Solo se repiten los que fallaron por estar saturados o lentos: volver
+        # a pedirle a un modelo que no existe no lo hace aparecer.
+        por_probar = pasajeros
+
+    if not motivos:
         raise HTTPException(status_code=502, detail='No hay ningún modelo de Inteligencia Artificial configurado.')
+
     # El aviso enumera todos los intentos: con un solo motivo no se distingue
     # un modelo saturado de uno que tarda de más, y son problemas distintos.
+    intentos = [
+        f'{modelo}: {motivo}' + (f' (se intentó {veces[modelo]} veces)' if veces.get(modelo, 0) > 1 else '')
+        for modelo, motivo in motivos.items()
+    ]
     raise HTTPException(
         status_code=502,
         detail=('Esta respuesta salió del catálogo porque la IA no contestó. Intentos: ' + ' · '.join(intentos)),

@@ -315,6 +315,78 @@ def test_ningun_modelo_se_intenta_dos_veces(monkeypatch):
     assert len(intentados) == len(set(intentados))
 
 
+def test_el_chatbot_da_una_segunda_vuelta_cuando_todo_esta_saturado(monkeypatch):
+    """Una racha de 503 es pasajera: el propio Google dice que esperes y reintentes."""
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        # Todos saturados en la primera vuelta; en la segunda ya contestan.
+        if len(intentados) <= 2:
+            raise chatbot.FalloDeIA(
+                'error 503. Dice: This model is currently experiencing high demand.',
+                reintentable=True,
+                pasajero=True,
+            )
+        return 'Con gusto te ayudo.'
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['uno', 'dos'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://api.groq.com/openai/v1/chat/completions')
+    monkeypatch.setattr(chatbot, 'IA_ESPERA_ENTRE_VUELTAS', 0)
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    assert chatbot._consultar_ia([], 'catálogo') == 'Con gusto te ayudo.'
+    assert intentados == ['uno', 'dos', 'uno']
+
+
+def test_la_segunda_vuelta_no_repite_los_modelos_que_no_existen(monkeypatch):
+    """Volver a pedirle a un modelo jubilado no lo hace aparecer."""
+    import chatbot
+
+    intentados = []
+
+    def responder(modelo, historial, catalogo):
+        intentados.append(modelo)
+        if modelo == 'jubilado':
+            raise chatbot.FalloDeIA('error 404. Dice: no longer available.', reintentable=True, pasajero=False)
+        raise chatbot.FalloDeIA(
+            'error 503. Dice: high demand.', reintentable=True, pasajero=True,
+        )
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['jubilado', 'saturado'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://api.groq.com/openai/v1/chat/completions')
+    monkeypatch.setattr(chatbot, 'IA_ESPERA_ENTRE_VUELTAS', 0)
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    with pytest.raises(HTTPException):
+        chatbot._consultar_ia([], 'catálogo')
+
+    # El jubilado se intentó una sola vez; el saturado, en las dos vueltas.
+    assert intentados == ['jubilado', 'saturado', 'saturado']
+
+
+def test_el_aviso_no_repite_el_mismo_modelo_en_cada_vuelta(monkeypatch):
+    """Con varias vueltas el aviso debe seguir siendo un renglón por modelo."""
+    import chatbot
+
+    def responder(modelo, historial, catalogo):
+        raise chatbot.FalloDeIA('error 503. Dice: high demand.', reintentable=True, pasajero=True)
+
+    monkeypatch.setattr(chatbot, 'IA_MODELOS', ['uno'])
+    monkeypatch.setattr(chatbot, 'IA_API_URL', 'https://api.groq.com/openai/v1/chat/completions')
+    monkeypatch.setattr(chatbot, 'IA_ESPERA_ENTRE_VUELTAS', 0)
+    monkeypatch.setattr(chatbot, '_pedir_al_modelo', responder)
+
+    with pytest.raises(HTTPException) as fallo:
+        chatbot._consultar_ia([], 'catálogo')
+
+    aviso = fallo.value.detail
+    assert aviso.count('uno:') == 1
+    assert 'se intentó 2 veces' in aviso
+
+
 def test_los_modelos_de_reserva_son_solo_para_google(monkeypatch):
     """Con otro proveedor, los nombres de Google no significan nada."""
     import chatbot
