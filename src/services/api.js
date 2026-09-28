@@ -173,6 +173,8 @@ export const pqrApi = {
   crear: (body) => apiRequest('/pqr', { method: 'POST', body: JSON.stringify(body) }),
   listar: (filtros) => apiRequest(`/pqr${buildQuery(filtros)}`),
   gestionar: (id, body) => apiRequest(`/pqr/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  responder: (id, respuesta) =>
+    apiRequest(`/pqr/${id}/responder`, { method: 'POST', body: JSON.stringify({ respuesta }) }),
 };
 
 export const chatbotApi = {

@@ -8,11 +8,17 @@ from pydantic import BaseModel
 try:
     from .core import get_current_user, get_db_connection, require_roles
     from .comercial import ESTADOS_PQR, TIPOS_PQR, next_number, now_iso, pqr_row
+    from .correo import enviar_correo, hay_correo_configurado
 except ImportError:
     from core import get_current_user, get_db_connection, require_roles
     from comercial import ESTADOS_PQR, TIPOS_PQR, next_number, now_iso, pqr_row
+    from correo import enviar_correo, hay_correo_configurado
 
 router = APIRouter(prefix='/api/pqr', tags=['pqr'])
+
+
+class PqrRespuesta(BaseModel):
+    respuesta: str
 
 
 class PqrCreate(BaseModel):
@@ -134,3 +140,61 @@ def gestionar_pqr(pqr_id: int, payload: PqrUpdate):
         return {'message': 'Solicitud actualizada.', 'pqr': pqr_row(actualizada)}
     finally:
         conn.close()
+
+
+def _correo_de_la_respuesta(fila, respuesta: str) -> str:
+    return (
+        f'Hola {fila["cliente_nombre"] or ""},\n\n'
+        f'Respondimos tu solicitud {fila["radicado"]} ({fila["tipo"]}: {fila["asunto"]}).\n\n'
+        f'Nuestra respuesta:\n{respuesta}\n\n'
+        'También puedes verla en la sección PQR de tu panel.\n\n'
+        'Equipo de SimonC Realidad Virtual'
+    )
+
+
+@router.post('/{pqr_id}/responder', dependencies=[Depends(require_roles('Administrador', 'Empleado'))])
+def responder_pqr(pqr_id: int, payload: PqrRespuesta):
+    """Guarda la respuesta, marca la solicitud como Respondida y avisa al cliente.
+
+    Es un paso solo: antes había que escribir el texto y además acordarse de
+    pulsar el estado correcto, y el cliente no recibía ningún aviso.
+
+    El correo sale si hay SMTP configurado. Si no lo hay, la respuesta queda
+    guardada igual y el cliente la ve en la sección PQR de su panel; el texto se
+    escribe en la consola del backend para poder probar el flujo.
+    """
+    respuesta = payload.respuesta.strip()
+    if not respuesta:
+        raise HTTPException(status_code=400, detail='Escribe la respuesta antes de enviarla.')
+
+    conn = get_db_connection()
+    try:
+        fila = conn.execute('SELECT * FROM pqr WHERE id = ?', (pqr_id,)).fetchone()
+        if fila is None:
+            raise HTTPException(status_code=404, detail='La solicitud no existe.')
+
+        conn.execute(
+            'UPDATE pqr SET estado = ?, respuesta = ?, updated_at = ? WHERE id = ?',
+            ('Respondida', respuesta, now_iso(), pqr_id),
+        )
+        conn.commit()
+        actualizada = conn.execute('SELECT * FROM pqr WHERE id = ?', (pqr_id,)).fetchone()
+    finally:
+        conn.close()
+
+    destinatario = (fila['cliente_email'] or '').strip()
+    cuerpo = _correo_de_la_respuesta(fila, respuesta)
+    enviado = enviar_correo(destinatario, f'Respuesta a tu solicitud {fila["radicado"]} - SimonC', cuerpo)
+    if not enviado:
+        print(f'[pqr] Respuesta de {fila["radicado"]} para {destinatario or "(sin correo)"}:\n{cuerpo}')
+
+    if enviado:
+        mensaje = f'Respuesta enviada al correo {destinatario}.'
+    elif not destinatario:
+        mensaje = 'Respuesta guardada. La solicitud no tiene correo, pero el cliente la ve en su panel.'
+    elif not hay_correo_configurado():
+        mensaje = 'Respuesta guardada. El cliente la ve en su panel (no hay servidor de correo configurado).'
+    else:
+        mensaje = 'Respuesta guardada, pero el correo no se pudo enviar. El cliente la ve en su panel.'
+
+    return {'message': mensaje, 'correoEnviado': enviado, 'pqr': pqr_row(actualizada)}

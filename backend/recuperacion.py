@@ -10,17 +10,17 @@ contraseña de otra persona.
 import hashlib
 import os
 import secrets
-import smtplib
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 
 try:
     from .core import dominio_publico, get_db_connection, hash_password
+    from .correo import enviar_correo
 except ImportError:
     from core import dominio_publico, get_db_connection, hash_password
+    from correo import enviar_correo
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
 
@@ -76,34 +76,14 @@ def _frontend_url() -> str:
 
 
 def _enviar_correo(destinatario: str, enlace: str) -> bool:
-    host = os.getenv('SMTP_HOST', '')
-    if not host:
-        return False
-
-    mensaje = EmailMessage()
-    mensaje['Subject'] = 'Recuperación de contraseña - SimonC'
-    mensaje['From'] = os.getenv('SMTP_FROM') or os.getenv('SMTP_USER', 'no-reply@simonsc.com')
-    mensaje['To'] = destinatario
-    mensaje.set_content(
+    """Manda el enlace de recuperación. Sin SMTP configurado no envía nada."""
+    return enviar_correo(
+        destinatario,
+        'Recuperación de contraseña - SimonC',
         'Recibimos una solicitud para cambiar tu contraseña.\n\n'
         f'Abre este enlace para crear una nueva (vence en {VIGENCIA_MINUTOS} minutos):\n{enlace}\n\n'
-        'Si no fuiste tú, puedes ignorar este mensaje.'
+        'Si no fuiste tú, puedes ignorar este mensaje.',
     )
-
-    puerto = int(os.getenv('SMTP_PORT', '587'))
-    usuario = os.getenv('SMTP_USER', '')
-    clave = os.getenv('SMTP_PASSWORD', '')
-    try:
-        with smtplib.SMTP(host, puerto, timeout=15) as servidor:
-            if os.getenv('SMTP_USE_TLS', 'true').lower() == 'true':
-                servidor.starttls()
-            if usuario:
-                servidor.login(usuario, clave)
-            servidor.send_message(mensaje)
-        return True
-    except (smtplib.SMTPException, OSError) as error:
-        print(f'[recuperacion] No se pudo enviar el correo: {error}')
-        return False
 
 
 @router.post('/recover')

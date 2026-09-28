@@ -5,6 +5,7 @@ import Button from './Button';
 import Input from './Input';
 import RecoverPassword from './RecoverPassword';
 import RegisterModal from './RegisterModal';
+import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
 import { rutaDelPanel } from '../utils/rutas';
 
@@ -24,7 +25,9 @@ function Login() {
   const [showRecover, setShowRecover] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [serverError, setServerError] = useState('');
-  const [aviso, setAviso] = useState('');
+  // Tras crear la cuenta se abre una ventana emergente con el aviso y el
+  // botón para pasar a iniciar sesión.
+  const [cuentaCreada, setCuentaCreada] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
@@ -89,7 +92,12 @@ function Login() {
     setForm({ email, password: '', remember: true });
     setErrors({});
     setServerError('');
-    setAviso('Cuenta creada con éxito. Escribe tu contraseña para iniciar sesión.');
+    setCuentaCreada(true);
+  };
+
+  /** Cierra el aviso de cuenta creada y deja el formulario en el paso de la clave. */
+  const irAIniciarSesion = () => {
+    setCuentaCreada(false);
     setPaso(PASO_CLAVE);
   };
 
@@ -115,8 +123,6 @@ function Login() {
               {paso === PASO_CORREO ? 'Usa tu cuenta de SimonC' : 'Escribe tu contraseña para continuar'}
             </p>
           </div>
-
-          {aviso && <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{aviso}</p>}
 
           {paso === PASO_CORREO ? (
             <form className="space-y-5" onSubmit={irAlPasoDeClave} noValidate>
@@ -204,6 +210,24 @@ function Login() {
       </div>
 
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onRegistered={alRegistrarse} />
+
+      <Modal
+        isOpen={cuentaCreada}
+        onClose={irAIniciarSesion}
+        title="Cuenta creada con éxito"
+        subtitle="Ya puedes entrar con tu correo y tu contraseña."
+        size="sm"
+        footer={
+          <Button onClick={irAIniciarSesion} className="w-full sm:w-auto">
+            Ir a iniciar sesión
+          </Button>
+        }
+      >
+        <p className="text-sm text-slate-300">
+          Tu cuenta quedó registrada con el correo <span className="font-semibold text-cyan-300">{form.email}</span>.
+          Escribe tu contraseña para iniciar sesión.
+        </p>
+      </Modal>
     </>
   );
 }

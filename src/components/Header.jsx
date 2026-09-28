@@ -23,7 +23,7 @@ function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-cyan-500/20 bg-slate-950/75 backdrop-blur-xl">
-      <div className={`mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 ${enPanel ? 'py-2.5' : 'py-4'}`}>
+      <div className={`flex items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 ${enPanel ? 'py-2.5 lg:pl-[18rem]' : 'mx-auto max-w-7xl py-4'}`}>
         {!enPanel && (
           <NavLink to="/" className="flex items-center gap-3">
             <img src={logo} alt="Logo SimonC" className="h-12 w-12 rounded-full ring-2 ring-cyan-400/50 shadow-[0_0_20px_rgba(34,211,238,0.45)]" />

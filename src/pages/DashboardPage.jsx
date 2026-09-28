@@ -8,6 +8,7 @@ import SalesModule from '../components/panel/SalesModule';
 import InvoicesModule from '../components/panel/InvoicesModule';
 import ReportsModule from '../components/panel/ReportsModule';
 import PqrModule from '../components/panel/PqrModule';
+import PasswordToggle from '../components/PasswordToggle';
 
 const blankResource = { name: '', description: '', price: '' };
 
@@ -369,6 +370,7 @@ function DashboardPage({ role }) {
   );
 
   const [seccion, setSeccion] = useState(secciones[0].clave);
+  const [verClave, setVerClave] = useState(false);
 
   useEffect(() => {
     // Si cambia el rol, la sección activa puede dejar de existir.
@@ -440,7 +442,7 @@ function DashboardPage({ role }) {
   return (
     <section className="space-y-6 pb-8">
       <div className="mb-6 flex flex-col gap-6 lg:flex-row">
-        <aside className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-5 lg:sticky lg:top-[4.75rem] lg:h-[calc(100vh-5.75rem)] lg:w-[260px] lg:shrink-0 lg:self-start lg:overflow-y-auto">
+        <aside className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-5 lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-[17rem] lg:rounded-none lg:border-0 lg:border-r lg:border-slate-700 lg:bg-slate-900 lg:p-6 lg:overflow-y-auto">
           <div className="mb-6 flex items-center gap-3">
             <img src={logo} alt="Logo SimonC" className="h-12 w-12 rounded-full ring-2 ring-cyan-400/50" />
             <div>
@@ -489,7 +491,10 @@ function DashboardPage({ role }) {
                 <input required maxLength="80" placeholder="Apellido" value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} className="field" />
                 <input required placeholder="Documento" inputMode="numeric" maxLength="12" value={form.documentNumber} disabled={Boolean(editingId)} onChange={(event) => setForm({ ...form, documentNumber: event.target.value.replace(/\D/g, '') })} className="field" />
                 <input required type="email" placeholder="Correo" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="field" />
-                <input required={!editingId} type="password" minLength="8" placeholder="Contraseña" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="field" />
+                <div className="relative">
+                  <input required={!editingId} type={verClave ? 'text' : 'password'} minLength="8" placeholder="Contraseña" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="field pr-12" />
+                  <PasswordToggle visible={verClave} onToggle={() => setVerClave((actual) => !actual)} className="text-slate-400 hover:text-cyan-300" />
+                </div>
                 <input required placeholder="Dirección" value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} className="field" />
                 <input required placeholder="Teléfono" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="field" />
                 <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} className="field">

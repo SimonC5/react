@@ -821,3 +821,57 @@ def test_un_cliente_sigue_sin_ver_las_ventas_de_otro(client, admin):
     ajena = _venta_de_mostrador(client, admin, '5555555555')
 
     assert client.get(f"/api/ventas/{ajena['id']}", headers=intruso).status_code == 403
+
+
+def _radicar_pqr(client, cabecera, asunto='Demora en el envío'):
+    respuesta = client.post('/api/pqr', headers=cabecera, json={
+        'tipo': 'Queja', 'asunto': asunto,
+        'descripcion': 'El pedido no ha llegado y ya pasó la fecha.',
+    })
+    assert respuesta.status_code in (200, 201), respuesta.text
+    return respuesta.json()['pqr']
+
+
+def test_responder_una_pqr_la_marca_respondida_y_avisa_al_cliente(client, admin):
+    """Un solo botón: guarda la respuesta, cambia el estado y notifica."""
+    cliente = _cuenta_de_cliente(client, 'ana.pqr@correo.com', '4455667788')
+    solicitud = _radicar_pqr(client, cliente)
+
+    enviada = client.post(
+        f"/api/pqr/{solicitud['id']}/responder",
+        headers=admin,
+        json={'respuesta': 'Tu pedido sale mañana, disculpa la demora.'},
+    )
+    assert enviada.status_code == 200, enviada.text
+    datos = enviada.json()
+    assert datos['pqr']['estado'] == 'Respondida'
+    assert datos['pqr']['respuesta'] == 'Tu pedido sale mañana, disculpa la demora.'
+    # Sin SMTP configurado no sale correo, pero la respuesta queda guardada.
+    assert datos['correoEnviado'] is False
+    assert 'panel' in datos['message']
+
+    # Y el cliente la ve en su propia consulta.
+    suyas = client.get('/api/pqr', headers=cliente).json()['pqr']
+    mia = next(item for item in suyas if item['id'] == solicitud['id'])
+    assert mia['respuesta'] == 'Tu pedido sale mañana, disculpa la demora.'
+
+
+def test_no_se_envia_una_respuesta_vacia(client, admin):
+    """Pulsar enviar sin escribir nada no debe marcar la PQR como respondida."""
+    cliente = _cuenta_de_cliente(client, 'ana.vacia@correo.com', '5566778899')
+    solicitud = _radicar_pqr(client, cliente, asunto='Consulta de garantía')
+
+    fallo = client.post(f"/api/pqr/{solicitud['id']}/responder", headers=admin, json={'respuesta': '   '})
+    assert fallo.status_code == 400
+
+    sigue = client.get(f"/api/pqr/{solicitud['id']}", headers=admin).json()['pqr']
+    assert sigue['estado'] != 'Respondida'
+
+
+def test_un_cliente_no_puede_responder_pqr(client):
+    """Responder es de Administrador y Empleado."""
+    cliente = _cuenta_de_cliente(client, 'ana.intrusa@correo.com', '6677889900')
+    solicitud = _radicar_pqr(client, cliente, asunto='Otra consulta')
+
+    negado = client.post(f"/api/pqr/{solicitud['id']}/responder", headers=cliente, json={'respuesta': 'Yo me respondo'})
+    assert negado.status_code == 403

@@ -3,6 +3,14 @@ import Modal from '../Modal';
 import { pqrApi } from '../../services/api';
 import { fechaCorta } from '../../utils/formato';
 
+function IconEnviar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+      <path d="M4 12 20 4l-8 16-2-6-6-2Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const solicitudVacia = { tipo: 'Petición', asunto: '', descripcion: '' };
 const ESTADOS = ['Pendiente', 'En proceso', 'Respondida', 'Cerrada'];
 const TIPOS = ['Petición', 'Queja', 'Reclamo', 'Sugerencia'];
@@ -19,6 +27,8 @@ function PqrModule({ puedeGestionar }) {
   const [radicacionAbierta, setRadicacionAbierta] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
+  // Radicado que se está enviando, para desactivar su botón mientras tanto.
+  const [enviando, setEnviando] = useState(null);
 
   const cargar = useCallback(
     (estado) =>
@@ -47,6 +57,25 @@ function PqrModule({ puedeGestionar }) {
       await cargar(filtroEstado);
     } catch (requestError) {
       setError(requestError.message);
+    }
+  };
+
+  const responder = async (registro) => {
+    const respuesta = (respuestas[registro.id] ?? registro.respuesta ?? '').trim();
+    if (!respuesta) {
+      setError('Escribe la respuesta antes de enviarla.');
+      return;
+    }
+    setEnviando(registro.id);
+    try {
+      const data = await pqrApi.responder(registro.id, respuesta);
+      setMensaje(data.message);
+      setError('');
+      await cargar(filtroEstado);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setEnviando(null);
     }
   };
 
@@ -181,12 +210,23 @@ function PqrModule({ puedeGestionar }) {
                   value={respuestas[registro.id] ?? registro.respuesta ?? ''}
                   onChange={(event) => setRespuestas({ ...respuestas, [registro.id]: event.target.value })}
                 />
-                <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={enviando === registro.id}
+                  onClick={() => responder(registro)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <IconEnviar />
+                  {enviando === registro.id ? 'Enviando...' : 'Enviar respuesta al cliente'}
+                </button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500">Cambiar el estado:</span>
                   {ESTADOS.map((estado) => (
                     <button
                       key={estado}
                       type="button"
-                      className="rounded-lg border border-slate-600 px-3 py-1 text-xs text-slate-200"
+                      className="rounded-lg border border-slate-600 px-3 py-1 text-xs text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
                       onClick={() => gestionar(registro, { estado, respuesta: respuestas[registro.id] ?? registro.respuesta })}
                     >
                       {estado}
