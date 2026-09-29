@@ -38,14 +38,15 @@ services:
       - key: IA_MODEL
         value: gemini-flash-lite-latest,gemini-flash-latest,gemini-3.8-flash
       # Correo saliente: el enlace de "Olvidé mi contraseña" y la respuesta de
-      # las PQR. Con Gmail solo hacen falta estas dos, que se escriben en el
-      # panel de Render (sync: false las deja vacías, nunca van al repositorio).
-      # SMTP_PASSWORD es una contraseña de aplicación de 16 letras creada en
-      # https://myaccount.google.com/apppasswords, no la clave de la cuenta.
-      # El servidor y el puerto se deducen del dominio del correo.
-      - key: SMTP_USER
+      # las PQR. Tiene que ir por API web y NO por SMTP: desde septiembre de
+      # 2025 el plan gratuito de Render bloquea la salida a los puertos 25, 465
+      # y 587, así que un Gmail por SMTP nunca llega desde aquí.
+      # La clave se saca en una cuenta gratuita de Brevo (SMTP & API > API Keys)
+      # y se escribe en el panel de Render; sync: false la deja vacía, nunca va
+      # al repositorio. EMAIL_FROM es el correo verificado en esa cuenta.
+      - key: EMAIL_API_KEY
         sync: false
-      - key: SMTP_PASSWORD
+      - key: EMAIL_FROM
         sync: false
 
   # Frontend Vite. Cualquier ruta se reenvía a index.html porque es una SPA.

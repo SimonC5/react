@@ -12,6 +12,7 @@ import socket
 import sys
 import tempfile
 import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -880,7 +881,10 @@ def test_un_cliente_no_puede_responder_pqr(client):
     assert negado.status_code == 403
 
 
-VARIABLES_DE_CORREO = ('SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM', 'SMTP_USE_TLS', 'SMTP_USE_SSL')
+VARIABLES_DE_CORREO = (
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM', 'SMTP_USE_TLS', 'SMTP_USE_SSL',
+    'EMAIL_API_KEY', 'EMAIL_FROM', 'EMAIL_API_URL', 'RENDER', 'RENDER_EXTERNAL_HOSTNAME',
+)
 
 
 def _sin_correo_configurado(monkeypatch):
@@ -1043,3 +1047,121 @@ def test_sin_configurar_la_prueba_explica_que_falta(client, admin, monkeypatch):
     # Y la pantalla de recuperación avisa que el enlace no se está enviando.
     recuperar = client.post('/api/auth/recover', json={'email': 'nadie@simonsc.com'}).json()
     assert recuperar['correoConfigurado'] is False
+
+
+def _api_de_correo_falsa(recibidas, codigo=201, respuesta=b'{"messageId":"<abc>"}'):
+    """Un servidor HTTP mínimo que hace de proveedor de correo por API web."""
+
+    class Manejador(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802 (lo exige BaseHTTPRequestHandler)
+            largo = int(self.headers.get('Content-Length', '0'))
+            recibidas.append({
+                'ruta': self.path,
+                'clave': self.headers.get('api-key', ''),
+                'cuerpo': json.loads(self.rfile.read(largo).decode('utf-8')),
+            })
+            self.send_response(codigo)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(respuesta)))
+            self.end_headers()
+            self.wfile.write(respuesta)
+
+        def log_message(self, *_):
+            pass
+
+    servidor = ThreadingHTTPServer(('127.0.0.1', 0), Manejador)
+    threading.Thread(target=servidor.serve_forever, daemon=True).start()
+    return servidor
+
+
+def _apuntar_a_la_api_falsa(monkeypatch, servidor):
+    _sin_correo_configurado(monkeypatch)
+    monkeypatch.setenv('EMAIL_API_KEY', 'clave-de-prueba')
+    monkeypatch.setenv('EMAIL_FROM', 'tienda@gmail.com')
+    monkeypatch.setenv('EMAIL_API_URL', f'http://127.0.0.1:{servidor.server_address[1]}/v3/smtp/email')
+
+
+def test_el_correo_sale_por_la_api_web(client, monkeypatch, capsys):
+    """La forma que sí funciona en el plan gratuito de Render."""
+    direccion = 'porapi@simonsc.com'
+    alta = client.post('/api/auth/register', json={
+        'name': 'Por', 'lastName': 'Api', 'documentType': 'CC', 'documentNumber': '5252525252',
+        'address': 'Carrera 10 numero 11-12', 'phone': '3007776655',
+        'email': direccion, 'password': 'Clave1234', 'confirmPassword': 'Clave1234',
+    })
+    assert alta.status_code == 200, alta.text
+
+    recibidas = []
+    servidor = _api_de_correo_falsa(recibidas)
+    try:
+        _apuntar_a_la_api_falsa(monkeypatch, servidor)
+        assert correo.via() == 'api'
+
+        respuesta = client.post('/api/auth/recover', json={'email': direccion})
+        assert respuesta.status_code == 200, respuesta.text
+        assert respuesta.json()['correoConfigurado'] is True
+    finally:
+        servidor.shutdown()
+
+    assert len(recibidas) == 1
+    peticion = recibidas[0]
+    assert peticion['clave'] == 'clave-de-prueba'
+    assert peticion['cuerpo']['sender'] == {'name': 'SimonC Realidad Virtual', 'email': 'tienda@gmail.com'}
+    assert peticion['cuerpo']['to'] == [{'email': direccion}]
+    assert 'reset-password?token=' in peticion['cuerpo']['textContent']
+    assert 'Crear una contraseña nueva' in peticion['cuerpo']['htmlContent']
+    # Si el correo salió, el enlace ya no se imprime en la consola.
+    assert 'reset-password?token=' not in capsys.readouterr().out
+
+
+def test_la_api_web_manda_sobre_smtp(monkeypatch):
+    """Configuradas las dos, se usa la que funciona en todas partes."""
+    _sin_correo_configurado(monkeypatch)
+    monkeypatch.setenv('SMTP_USER', 'tienda@gmail.com')
+    monkeypatch.setenv('SMTP_PASSWORD', 'clavedeaplicacion')
+    assert correo.via() == 'smtp'
+    monkeypatch.setenv('EMAIL_API_KEY', 'clave-de-prueba')
+    assert correo.via() == 'api'
+
+
+def test_sin_remitente_la_api_web_dice_que_falta(client, admin, monkeypatch):
+    _sin_correo_configurado(monkeypatch)
+    monkeypatch.setenv('EMAIL_API_KEY', 'clave-de-prueba')
+    datos = client.get('/api/auth/correo-estado', headers=admin).json()
+    assert datos['configurado'] is False
+    assert 'EMAIL_FROM' in datos['motivo']
+
+
+def test_la_api_web_explica_el_error_del_proveedor(client, admin, monkeypatch):
+    """Una clave vencida no puede quedarse en un "no se pudo" sin causa."""
+    servidor = _api_de_correo_falsa([], codigo=401, respuesta=b'{"message":"Key not found"}')
+    try:
+        _apuntar_a_la_api_falsa(monkeypatch, servidor)
+        respuesta = client.post('/api/auth/probar-correo', headers=admin, json={'email': 'destino@gmail.com'})
+    finally:
+        servidor.shutdown()
+
+    datos = respuesta.json()
+    assert datos['enviado'] is False
+    assert 'EMAIL_API_KEY' in datos['message']
+    # La clave jamás aparece en un mensaje que se muestra en pantalla.
+    assert 'clave-de-prueba' not in datos['message']
+
+
+def test_en_render_avisa_que_el_plan_gratuito_bloquea_smtp(client, admin, monkeypatch):
+    """El correo por SMTP se perdería en silencio en el sitio publicado."""
+    _sin_correo_configurado(monkeypatch)
+    monkeypatch.setenv('SMTP_USER', 'tienda@gmail.com')
+    monkeypatch.setenv('SMTP_PASSWORD', 'clavedeaplicacion')
+    assert correo.advertencia() == ''
+
+    monkeypatch.setenv('RENDER', 'true')
+    assert 'Render bloquea' in correo.advertencia()
+    datos = client.get('/api/auth/correo-estado', headers=admin).json()
+    assert datos['configurado'] is True
+    assert 'EMAIL_API_KEY' in datos['advertencia']
+
+    # Por API web no hay nada que advertir: esa sí sale desde Render.
+    monkeypatch.setenv('EMAIL_API_KEY', 'clave-de-prueba')
+    monkeypatch.setenv('EMAIL_FROM', 'tienda@gmail.com')
+    assert correo.advertencia() == ''

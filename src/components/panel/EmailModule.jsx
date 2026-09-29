@@ -74,8 +74,7 @@ function EmailModule() {
           <p className="font-semibold">{configurado ? 'Configurado' : 'Sin configurar'}</p>
           {configurado ? (
             <p className="mt-1">
-              Los correos salen desde <span className="font-mono">{estado.remitente}</span> por{' '}
-              <span className="font-mono">{estado.servidor}</span>.
+              Los correos salen desde <span className="font-mono">{estado.remitente}</span> por {estado.porDonde}.
             </p>
           ) : (
             <p className="mt-1">{estado.motivo}</p>
@@ -83,19 +82,36 @@ function EmailModule() {
         </div>
       )}
 
-      {!configurado && estado && (
-        <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-300">
-          <li>Activa la verificación en dos pasos en la cuenta de Google que va a enviar los correos.</li>
-          <li>
-            Crea una contraseña de aplicación en{' '}
-            <span className="font-mono">myaccount.google.com/apppasswords</span> y copia las 16 letras.
-          </li>
-          <li>
-            Escribe <span className="font-mono">SMTP_USER</span> (el correo) y <span className="font-mono">SMTP_PASSWORD</span>{' '}
-            (esas 16 letras) en las variables del servidor. El resto se deduce solo.
-          </li>
-          <li>Reinicia el backend y vuelve a esta pantalla.</li>
-        </ol>
+      {/* El plan gratuito de Render bloquea SMTP, así que aquí se avisa aunque
+          la configuración esté completa: si no, el correo se pierde en silencio. */}
+      {estado?.advertencia && (
+        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+          {estado.advertencia}
+        </p>
+      )}
+
+      {estado && (!configurado || estado.advertencia) && (
+        <div className="space-y-2 text-sm text-slate-300">
+          <p className="font-semibold text-slate-200">Para que los correos salgan en cualquier parte:</p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>
+              Crea una cuenta gratuita en <span className="font-mono">brevo.com</span> con el correo que quieras
+              usar como remitente.
+            </li>
+            <li>En esa cuenta, entra a SMTP &amp; API, pestaña API Keys, y genera una clave.</li>
+            <li>
+              Escribe <span className="font-mono">EMAIL_API_KEY</span> (la clave) y{' '}
+              <span className="font-mono">EMAIL_FROM</span> (ese mismo correo) en las variables del servidor.
+            </li>
+            <li>Reinicia el backend, o vuelve a publicar el servicio, y regresa a esta pantalla.</li>
+          </ol>
+          <p className="text-slate-400">
+            En tu propio computador también sirve un Gmail por SMTP:{' '}
+            <span className="font-mono">SMTP_USER</span> y <span className="font-mono">SMTP_PASSWORD</span> con una
+            contraseña de aplicación de <span className="font-mono">myaccount.google.com/apppasswords</span>. En el
+            sitio publicado no, porque el plan gratuito de Render bloquea SMTP.
+          </p>
+        </div>
       )}
 
       {mensaje && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-200">{mensaje}</p>}

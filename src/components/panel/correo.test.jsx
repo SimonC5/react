@@ -22,7 +22,10 @@ describe('Servidor de correo en el panel del administrador', () => {
   it('cuando falta configurarlo dice qué falta y cómo hacerlo', async () => {
     authApi.correoEstado.mockResolvedValue({
       configurado: false,
-      motivo: 'Falta SMTP_PASSWORD.',
+      motivo: 'Falta EMAIL_API_KEY.',
+      via: '',
+      porDonde: '',
+      advertencia: '',
       servidor: '',
       remitente: '',
     });
@@ -30,26 +33,50 @@ describe('Servidor de correo en el panel del administrador', () => {
     render(<EmailModule />);
 
     expect(await screen.findByText(/sin configurar/i)).not.toBeNull();
-    expect(screen.getByText(/falta smtp_password/i)).not.toBeNull();
-    expect(screen.getByText(/contraseña de aplicación/i)).not.toBeNull();
+    expect(screen.getByText(/falta email_api_key/i)).not.toBeNull();
+    expect(screen.getByText(/brevo\.com/i)).not.toBeNull();
+  });
+
+  it('avisa cuando el correo está por SMTP y Render lo bloquea', async () => {
+    authApi.correoEstado.mockResolvedValue({
+      configurado: true,
+      motivo: '',
+      via: 'smtp',
+      porDonde: 'SMTP, conectándose a smtp.gmail.com:587',
+      advertencia: 'Render bloquea la salida a los puertos de SMTP en el plan gratuito.',
+      servidor: 'smtp.gmail.com:587',
+      remitente: 'SimonC <tienda@gmail.com>',
+    });
+
+    render(<EmailModule />);
+
+    expect(await screen.findByText(/^configurado$/i)).not.toBeNull();
+    expect(screen.getByText(/render bloquea la salida/i)).not.toBeNull();
+    // Aunque diga "Configurado", se explica cómo dejarlo funcionando.
+    expect(screen.getByText(/brevo\.com/i)).not.toBeNull();
   });
 
   it('cuando está configurado muestra desde dónde salen los correos', async () => {
     authApi.correoEstado.mockResolvedValue({
       configurado: true,
       motivo: '',
-      servidor: 'smtp.gmail.com:587',
+      via: 'api',
+      porDonde: 'una API web, que es la que funciona en el plan gratuito de Render',
+      advertencia: '',
+      servidor: '',
       remitente: 'SimonC Realidad Virtual <tienda@gmail.com>',
     });
 
     render(<EmailModule />);
 
     expect(await screen.findByText(/^configurado$/i)).not.toBeNull();
-    expect(screen.getByText(/smtp\.gmail\.com:587/)).not.toBeNull();
+    expect(screen.getByText(/una api web/i)).not.toBeNull();
+    // Configurado y sin advertencia: no hay por qué explicar nada más.
+    expect(screen.queryByText(/brevo\.com/i)).toBeNull();
   });
 
   it('el correo de prueba muestra el motivo cuando no sale', async () => {
-    authApi.correoEstado.mockResolvedValue({ configurado: true, motivo: '', servidor: 'smtp.gmail.com:587', remitente: 'x' });
+    authApi.correoEstado.mockResolvedValue({ configurado: true, motivo: '', via: 'api', porDonde: 'una API web', advertencia: '', servidor: '', remitente: 'x' });
     authApi.probarCorreo.mockResolvedValue({ enviado: false, message: 'Gmail rechazó la contraseña de aplicación.' });
 
     render(<EmailModule />);

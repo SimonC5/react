@@ -22,20 +22,24 @@ from pydantic import BaseModel, EmailStr
 try:
     from .core import dominio_publico, get_db_connection, hash_password, require_roles
     from .correo import (
+        advertencia,
         enviar_correo_detalle,
         hay_correo_configurado,
         remitente,
         revisar_configuracion,
         servidor_de_correo,
+        via,
     )
 except ImportError:
     from core import dominio_publico, get_db_connection, hash_password, require_roles
     from correo import (
+        advertencia,
         enviar_correo_detalle,
         hay_correo_configurado,
         remitente,
         revisar_configuracion,
         servidor_de_correo,
+        via,
     )
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
@@ -197,10 +201,20 @@ def cambiar_clave(payload: CambioDeClave):
 def estado_del_correo():
     """Diagnóstico del servidor de correo, para el panel del administrador."""
     falta = revisar_configuracion()
+    camino = via()
     host, puerto = servidor_de_correo()
+    if camino == 'api':
+        por_donde = 'una API web, que es la que funciona en el plan gratuito de Render'
+    elif camino == 'smtp':
+        por_donde = f'SMTP, conectándose a {host}:{puerto}'
+    else:
+        por_donde = ''
     return {
         'configurado': not falta,
         'motivo': falta,
+        'via': camino,
+        'porDonde': por_donde,
+        'advertencia': advertencia(),
         'servidor': f'{host}:{puerto}' if host else '',
         'remitente': remitente() if not falta else '',
     }
