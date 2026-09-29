@@ -1,9 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
 import { pagosApi } from '../services/api';
 import { formatoMoneda } from '../utils/formato';
 
 const IVA = 0.19;
+
+const MEDIOS = [
+  { clave: 'tarjeta', etiqueta: 'Tarjeta' },
+  { clave: 'pse', etiqueta: 'PSE' },
+  { clave: 'efectivo', etiqueta: 'Efectivo' },
+];
+
+const formularioVacio = {
+  nombre: '',
+  numero: '',
+  vencimiento: '',
+  cvv: '',
+  cuotas: 1,
+  banco: '',
+  tipoDocumento: 'CC',
+  documento: '',
+  puntoDePago: '',
+};
 
 /** Deja el número de la tarjeta en grupos de cuatro mientras se escribe. */
 function agruparTarjeta(valor) {
@@ -18,52 +36,28 @@ function formatearVencimiento(valor) {
 }
 
 /**
- * Formulario que se envía a PayU.
- *
- * PayU recibe el pedido por POST, no por dirección, así que se arma un
- * formulario de verdad y se envía solo. Va oculto: para el comprador es un
- * salto directo a la página de PayU.
- */
-function FormularioPayU({ datos }) {
-  const formulario = useRef(null);
-
-  useEffect(() => {
-    if (datos) formulario.current?.submit();
-  }, [datos]);
-
-  if (!datos) return null;
-
-  return (
-    <form ref={formulario} method="post" action={datos.url} className="hidden">
-      {Object.entries(datos.campos).map(([nombre, valor]) => (
-        <input key={nombre} type="hidden" name={nombre} value={valor} readOnly />
-      ))}
-    </form>
-  );
-}
-
-/**
  * Pasarela de pago de la tienda.
  *
- * Recibe la venta que ya quedó registrada y cobra: o saltando a PayU, o con el
- * formulario de tarjeta de la pasarela simulada. Los importes no se calculan
- * aquí para cobrar: el total lo pone el servidor a partir de la venta. Lo que
- * se ve en pantalla es solo el desglose, para que el comprador sepa qué firma.
+ * Es un formulario dentro del sitio: el comprador elige el medio de pago, llena
+ * los datos y ve el resultado ahí mismo, sin cambiar de página.
+ *
+ * Los importes que se muestran son solo el desglose para que sepa qué está
+ * pagando. Lo que se cobra lo calcula el servidor a partir de la venta.
  */
 function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
   const [config, setConfig] = useState(null);
-  const [medio, setMedio] = useState('payu');
-  const [tarjeta, setTarjeta] = useState({ nombre: '', numero: '', vencimiento: '', cvv: '', cuotas: 1 });
+  const [medio, setMedio] = useState('tarjeta');
+  const [datos, setDatos] = useState(formularioVacio);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState(null);
-  const [saltoPayu, setSaltoPayu] = useState(null);
 
   useEffect(() => {
     if (!abierto) return;
     setError('');
     setResultado(null);
-    setSaltoPayu(null);
+    setMedio('tarjeta');
+    setDatos(formularioVacio);
     pagosApi.config().then(setConfig).catch(() => setConfig(null));
   }, [abierto]);
 
@@ -73,32 +67,22 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
     return { base, iva: total - base, total };
   }, [venta]);
 
-  const irAPayu = async () => {
-    setEnviando(true);
-    setError('');
-    try {
-      setSaltoPayu(await pagosApi.iniciarPayu(venta.id));
-    } catch (requestError) {
-      setError(requestError.message);
-      setEnviando(false);
-    }
-  };
+  const cambiar = (campo) => (event) => setDatos((actual) => ({ ...actual, [campo]: event.target.value }));
 
-  const pagarConTarjeta = async (event) => {
+  const pagar = async (event) => {
     event.preventDefault();
     setEnviando(true);
     setError('');
     try {
-      const data = await pagosApi.pagarSimulado({
+      const respuesta = await pagosApi.pagar({
         ventaId: venta.id,
-        nombre: tarjeta.nombre,
-        numero: tarjeta.numero.replace(/\s/g, ''),
-        vencimiento: tarjeta.vencimiento,
-        cvv: tarjeta.cvv,
-        cuotas: Number(tarjeta.cuotas) || 1,
+        metodo: medio,
+        ...datos,
+        numero: datos.numero.replace(/\s/g, ''),
+        cuotas: Number(datos.cuotas) || 1,
       });
-      setResultado(data);
-      if (data.pago.estado === 'Aprobado') onPagada?.(data);
+      setResultado(respuesta);
+      if (respuesta.pago.estado === 'Aprobado') onPagada?.(respuesta);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -107,12 +91,8 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
   };
 
   const aprobado = resultado?.pago?.estado === 'Aprobado';
-
-  // En PayU el resultado lo decide el nombre del titular, no la tarjeta, así
-  // que la que solo entiende la pasarela simulada no se enseña allí.
-  const tarjetasDePrueba = (config?.tarjetasDePrueba || []).filter(
-    (item) => medio === 'simulada' || item.donde !== 'simulada',
-  );
+  const rechazado = resultado?.pago?.estado === 'Rechazado';
+  const titulos = { Aprobado: 'Pago aprobado', Rechazado: 'Pago rechazado', Pendiente: 'Pago pendiente' };
 
   return (
     <Modal
@@ -121,16 +101,16 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
       title={resultado ? 'Resultado del pago' : 'Pagar la compra'}
       subtitle={venta ? `Compra ${venta.numero}` : ''}
     >
-      <FormularioPayU datos={saltoPayu} />
-
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
 
       {resultado ? (
         <div className="space-y-4">
           <div
-            className={`rounded-xl p-4 ${aprobado ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}`}
+            className={`rounded-xl p-4 ${
+              aprobado ? 'bg-emerald-500/10 text-emerald-200' : rechazado ? 'bg-red-500/10 text-red-300' : 'bg-amber-500/10 text-amber-200'
+            }`}
           >
-            <p className="text-lg font-bold">{aprobado ? 'Pago aprobado' : `Pago ${resultado.pago.estado.toLowerCase()}`}</p>
+            <p className="text-lg font-bold">{titulos[resultado.pago.estado] || 'Resultado del pago'}</p>
             <p className="mt-1 text-sm">{resultado.message}</p>
           </div>
 
@@ -146,7 +126,9 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
             <div>
               <dt className="text-slate-500">Medio de pago</dt>
               <dd className="text-slate-200">
-                {resultado.pago.franquicia} terminada en {resultado.pago.ultimosDigitos}
+                {resultado.pago.ultimosDigitos
+                  ? `${resultado.pago.entidad} terminada en ${resultado.pago.ultimosDigitos}`
+                  : resultado.pago.entidad}
               </dd>
             </div>
             <div>
@@ -162,7 +144,7 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            {!aprobado && (
+            {rechazado && (
               <button
                 type="button"
                 className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
@@ -181,7 +163,7 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
           </div>
         </div>
       ) : (
-        <div className="space-y-5">
+        <form onSubmit={pagar} className="space-y-5">
           <dl className="space-y-1 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-400">Subtotal</dt>
@@ -197,61 +179,34 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
             </div>
           </dl>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setMedio('payu')}
-              className={`rounded-lg border px-4 py-2 text-sm ${
-                medio === 'payu' ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200' : 'border-slate-700 text-slate-300'
-              }`}
-            >
-              PayU
-            </button>
-            <button
-              type="button"
-              onClick={() => setMedio('simulada')}
-              className={`rounded-lg border px-4 py-2 text-sm ${
-                medio === 'simulada' ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200' : 'border-slate-700 text-slate-300'
-              }`}
-            >
-              Tarjeta de crédito
-            </button>
-          </div>
-
-          {medio === 'payu' ? (
-            <div className="space-y-4">
-              <p className="text-sm text-slate-400">
-                Vas a salir a la página de PayU para pagar con tarjeta, PSE o en efectivo, y al terminar vuelves aquí.
-              </p>
-              {config?.payuPruebas && (
-                <p className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-200">
-                  PayU está en <strong>modo de pruebas</strong>: no se cobra dinero de verdad. Usa una de las tarjetas de
-                  prueba de abajo y escribe <strong>APPROVED</strong> en el nombre del titular.
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={enviando}
-                onClick={irAPayu}
-                className="w-full rounded-lg bg-cyan-500 px-4 py-3 font-semibold text-slate-950 disabled:opacity-50"
-              >
-                {enviando ? 'Abriendo PayU...' : `Pagar ${formatoMoneda(totales.total)} con PayU`}
-              </button>
+          <fieldset>
+            <legend className="mb-2 text-sm text-slate-300">Medio de pago</legend>
+            <div className="flex flex-wrap gap-2">
+              {MEDIOS.map((item) => (
+                <button
+                  key={item.clave}
+                  type="button"
+                  onClick={() => setMedio(item.clave)}
+                  aria-pressed={medio === item.clave}
+                  className={`rounded-lg border px-4 py-2 text-sm ${
+                    medio === item.clave
+                      ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
+                      : 'border-slate-700 text-slate-300'
+                  }`}
+                >
+                  {item.etiqueta}
+                </button>
+              ))}
             </div>
-          ) : (
-            <form onSubmit={pagarConTarjeta} className="space-y-4">
+          </fieldset>
+
+          {medio === 'tarjeta' && (
+            <div className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm text-slate-300" htmlFor="pago-nombre">
                   Nombre del titular
                 </label>
-                <input
-                  id="pago-nombre"
-                  required
-                  maxLength="80"
-                  className="field"
-                  value={tarjeta.nombre}
-                  onChange={(event) => setTarjeta({ ...tarjeta, nombre: event.target.value })}
-                />
+                <input id="pago-nombre" required maxLength="80" className="field" value={datos.nombre} onChange={cambiar('nombre')} />
               </div>
 
               <div>
@@ -264,8 +219,8 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
                   inputMode="numeric"
                   placeholder="4111 1111 1111 1111"
                   className="field"
-                  value={tarjeta.numero}
-                  onChange={(event) => setTarjeta({ ...tarjeta, numero: agruparTarjeta(event.target.value) })}
+                  value={datos.numero}
+                  onChange={(event) => setDatos({ ...datos, numero: agruparTarjeta(event.target.value) })}
                 />
               </div>
 
@@ -280,8 +235,8 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
                     inputMode="numeric"
                     placeholder="MM/AA"
                     className="field"
-                    value={tarjeta.vencimiento}
-                    onChange={(event) => setTarjeta({ ...tarjeta, vencimiento: formatearVencimiento(event.target.value) })}
+                    value={datos.vencimiento}
+                    onChange={(event) => setDatos({ ...datos, vencimiento: formatearVencimiento(event.target.value) })}
                   />
                 </div>
                 <div>
@@ -295,20 +250,15 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
                     maxLength="4"
                     placeholder="123"
                     className="field"
-                    value={tarjeta.cvv}
-                    onChange={(event) => setTarjeta({ ...tarjeta, cvv: event.target.value.replace(/\D/g, '') })}
+                    value={datos.cvv}
+                    onChange={(event) => setDatos({ ...datos, cvv: event.target.value.replace(/\D/g, '') })}
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm text-slate-300" htmlFor="pago-cuotas">
                     Cuotas
                   </label>
-                  <select
-                    id="pago-cuotas"
-                    className="field"
-                    value={tarjeta.cuotas}
-                    onChange={(event) => setTarjeta({ ...tarjeta, cuotas: event.target.value })}
-                  >
+                  <select id="pago-cuotas" className="field" value={datos.cuotas} onChange={cambiar('cuotas')}>
                     {[1, 3, 6, 12, 24].map((numero) => (
                       <option key={numero} value={numero}>
                         {numero}
@@ -317,36 +267,104 @@ function CheckoutModal({ abierto, onClose, venta, factura, onPagada }) {
                   </select>
                 </div>
               </div>
-
-              <p className="text-xs text-slate-500">
-                Esta pasarela es una simulación del sitio: no cobra dinero de verdad. No guardamos el número de la tarjeta ni el código de seguridad: del pago solo quedan la franquicia y los
-                cuatro últimos dígitos.
-              </p>
-
-              <button
-                type="submit"
-                disabled={enviando}
-                className="w-full rounded-lg bg-cyan-500 px-4 py-3 font-semibold text-slate-950 disabled:opacity-50"
-              >
-                {enviando ? 'Procesando...' : `Pagar ${formatoMoneda(totales.total)}`}
-              </button>
-            </form>
+            </div>
           )}
 
-          {tarjetasDePrueba.length > 0 && (
+          {medio === 'pse' && (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm text-slate-300" htmlFor="pago-banco">
+                  Banco
+                </label>
+                <select id="pago-banco" required className="field" value={datos.banco} onChange={cambiar('banco')}>
+                  <option value="">Elige tu banco</option>
+                  {(config?.bancos || []).map((banco) => (
+                    <option key={banco} value={banco}>
+                      {banco}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm text-slate-300" htmlFor="pago-tipo-doc">
+                    Tipo de documento
+                  </label>
+                  <select id="pago-tipo-doc" className="field" value={datos.tipoDocumento} onChange={cambiar('tipoDocumento')}>
+                    {(config?.tiposDeDocumento || ['CC']).map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-slate-300" htmlFor="pago-doc">
+                    Número de documento
+                  </label>
+                  <input
+                    id="pago-doc"
+                    required
+                    inputMode="numeric"
+                    maxLength="15"
+                    className="field"
+                    value={datos.documento}
+                    onChange={(event) => setDatos({ ...datos, documento: event.target.value.replace(/\D/g, '') })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {medio === 'efectivo' && (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm text-slate-300" htmlFor="pago-punto">
+                  Dónde vas a pagar
+                </label>
+                <select id="pago-punto" required className="field" value={datos.puntoDePago} onChange={cambiar('puntoDePago')}>
+                  <option value="">Elige el punto de pago</option>
+                  {(config?.puntosDePago || []).map((punto) => (
+                    <option key={punto} value={punto}>
+                      {punto}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-200">
+                Te damos un código para pagar en el punto que elijas. La compra queda reservada y pasa a Pagada cuando
+                recibamos el dinero.
+              </p>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-500">
+            No guardamos el número de la tarjeta ni el código de seguridad: del pago solo quedan la franquicia y los
+            cuatro últimos dígitos.
+          </p>
+
+          <button
+            type="submit"
+            disabled={enviando}
+            className="w-full rounded-lg bg-cyan-500 px-4 py-3 font-semibold text-slate-950 disabled:opacity-50"
+          >
+            {enviando ? 'Procesando...' : `Pagar ${formatoMoneda(totales.total)}`}
+          </button>
+
+          {medio === 'tarjeta' && config?.tarjetasDePrueba?.length > 0 && (
             <details className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm">
               <summary className="cursor-pointer text-slate-300">Tarjetas de prueba</summary>
               <ul className="mt-2 space-y-1 text-slate-400">
-                {tarjetasDePrueba.map((item) => (
+                {config.tarjetasDePrueba.map((item) => (
                   <li key={item.numero}>
-                    <span className="font-mono text-slate-200">{item.numero}</span> · {item.franquicia} ·{' '}
-                    {medio === 'payu' ? 'Sirve en PayU' : item.resultado}
+                    <span className="font-mono text-slate-200">{item.numero}</span> · {item.franquicia} · {item.resultado}
                   </li>
                 ))}
               </ul>
             </details>
           )}
-        </div>
+        </form>
       )}
     </Modal>
   );

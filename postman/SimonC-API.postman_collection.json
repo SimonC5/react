@@ -55,6 +55,14 @@
     {
       "key": "referenciaPago",
       "value": ""
+    },
+    {
+      "key": "ventaPse",
+      "value": ""
+    },
+    {
+      "key": "ventaEfectivo",
+      "value": ""
     }
   ],
   "item": [
@@ -663,10 +671,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('responde 200', () => pm.response.to.be.success);",
-                  "pm.test('ofrece PayU y la pasarela simulada', () => {",
-                  "  const datos = pm.response.json();",
-                  "  pm.expect(datos.pasarelas).to.include('payu');",
-                  "  pm.expect(datos.pasarelas).to.include('simulada');",
+                  "pm.test('ofrece tarjeta, PSE y efectivo', () => {",
+                  "  pm.expect(pm.response.json().metodos).to.eql(['tarjeta', 'pse', 'efectivo']);",
                   "});"
                 ]
               }
@@ -709,44 +715,6 @@
           ]
         },
         {
-          "name": "Empezar el pago en PayU",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/pagos/payu",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"origen\": \"http://localhost:5173\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('devuelve el formulario firmado', () => pm.response.to.be.success);",
-                  "const datos = pm.response.json();",
-                  "pm.collectionVariables.set('referenciaPago', datos.referencia);",
-                  "pm.test('va firmado y en modo de pruebas', () => {",
-                  "  pm.expect(datos.campos.signature).to.be.a('string').and.not.empty;",
-                  "  pm.expect(datos.campos.test).to.eql('1');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "Tarjeta rechazada por fondos",
           "request": {
             "method": "POST",
@@ -760,10 +728,10 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/pagos/simulado",
+            "url": "{{baseUrl}}/pagos",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"nombre\": \"Ana Restrepo\",\n  \"numero\": \"4000000200000000\",\n  \"vencimiento\": \"12/30\",\n  \"cvv\": \"123\",\n  \"cuotas\": 1\n}"
+              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"metodo\": \"tarjeta\",\n  \"nombre\": \"Ana Restrepo\",\n  \"numero\": \"4000000200000000\",\n  \"vencimiento\": \"12/30\",\n  \"cvv\": \"123\",\n  \"cuotas\": 1\n}"
             }
           },
           "event": [
@@ -783,7 +751,7 @@
           ]
         },
         {
-          "name": "Pagar con la pasarela simulada",
+          "name": "Pagar con tarjeta",
           "request": {
             "method": "POST",
             "header": [
@@ -796,10 +764,10 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/pagos/simulado",
+            "url": "{{baseUrl}}/pagos",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"nombre\": \"APPROVED Ana Restrepo\",\n  \"numero\": \"4111111111111111\",\n  \"vencimiento\": \"12/30\",\n  \"cvv\": \"123\",\n  \"cuotas\": 1\n}"
+              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"metodo\": \"tarjeta\",\n  \"nombre\": \"Ana Restrepo\",\n  \"numero\": \"4111111111111111\",\n  \"vencimiento\": \"12/30\",\n  \"cvv\": \"123\",\n  \"cuotas\": 1\n}"
             }
           },
           "event": [
@@ -810,9 +778,147 @@
                 "exec": [
                   "pm.test('responde 201', () => pm.response.to.have.status(201));",
                   "const datos = pm.response.json();",
+                  "pm.collectionVariables.set('referenciaPago', datos.pago.referencia);",
                   "pm.test('el pago se aprueba', () => pm.expect(datos.pago.estado).to.eql('Aprobado'));",
                   "pm.test('la compra queda pagada', () => pm.expect(datos.venta.estado).to.eql('Pagada'));",
                   "pm.test('no devuelve el numero de la tarjeta', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedido para pagar por PSE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas/pedido",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observaciones\": \"Pedido para pagar por PSE\",\n  \"items\": [\n    { \"tipo\": \"servicio\", \"itemId\": 1, \"cantidad\": 1 }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el pedido queda registrado', () => pm.response.to.be.success);",
+                  "pm.collectionVariables.set('ventaPse', pm.response.json().venta.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagar con PSE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ventaId\": {{ventaPse}},\n  \"metodo\": \"pse\",\n  \"banco\": \"Bancolombia\",\n  \"tipoDocumento\": \"CC\",\n  \"documento\": \"1035487621\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('debita del banco elegido', () => pm.expect(datos.pago.entidad).to.eql('Bancolombia'));",
+                  "pm.test('la compra queda pagada', () => pm.expect(datos.venta.estado).to.eql('Pagada'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedido para pagar en efectivo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas/pedido",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observaciones\": \"Pedido para pagar en efectivo\",\n  \"items\": [\n    { \"tipo\": \"producto\", \"itemId\": 2, \"cantidad\": 1 }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el pedido queda registrado', () => pm.response.to.be.success);",
+                  "pm.collectionVariables.set('ventaEfectivo', pm.response.json().venta.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagar en efectivo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ventaId\": {{ventaEfectivo}},\n  \"metodo\": \"efectivo\",\n  \"puntoDePago\": \"Efecty\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('queda pendiente hasta que entre el dinero', () => pm.expect(datos.pago.estado).to.eql('Pendiente'));",
+                  "pm.test('entrega un codigo para pagar', () => pm.expect(datos.pago.transaccion).to.be.a('string').and.not.empty);",
+                  "pm.test('la compra sigue sin pagar', () => pm.expect(datos.venta.estado).to.eql('Registrada'));"
                 ]
               }
             }
@@ -837,9 +943,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('responde 200', () => pm.response.to.be.success);",
-                  "pm.test('trae el pago aprobado', () => {",
+                  "pm.test('trae los pagos de la tienda', () => {",
                   "  const datos = pm.response.json();",
-                  "  pm.expect(datos.pagos.length).to.be.above(0);",
+                  "  pm.expect(datos.pagos.length).to.be.above(2);",
                   "  pm.expect(datos.resumen.aprobado).to.be.above(0);",
                   "});"
                 ]

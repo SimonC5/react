@@ -160,19 +160,12 @@ export const facturasApi = {
   descargar: (id, numero) => apiDownload(`/facturas/${id}/pdf`, `factura-${numero}.pdf`),
 };
 
-// Pasarela de pago: PayU en modo de pruebas y la pasarela simulada del sitio.
+// Pasarela de pago: el formulario del propio sitio, con sus medios de pago.
 export const pagosApi = {
   config: () => apiRequest('/pagos/config'),
-  iniciarPayu: (ventaId) =>
-    apiRequest('/pagos/payu', {
-      method: 'POST',
-      // El origen es la dirección a la que PayU tiene que devolver el navegador.
-      body: JSON.stringify({ ventaId, origen: window.location.origin }),
-    }),
-  confirmarPayu: (parametros) =>
-    apiRequest('/pagos/payu/respuesta', { method: 'POST', body: JSON.stringify(parametros) }),
-  pagarSimulado: (body) => apiRequest('/pagos/simulado', { method: 'POST', body: JSON.stringify(body) }),
+  pagar: (body) => apiRequest('/pagos', { method: 'POST', body: JSON.stringify(body) }),
   listar: (filtros) => apiRequest(`/pagos${buildQuery(filtros)}`),
+  detalle: (id) => apiRequest(`/pagos/${id}`),
 };
 
 export const reportesApi = {

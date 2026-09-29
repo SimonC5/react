@@ -89,9 +89,8 @@ CREATE TABLE IF NOT EXISTS pagos (
     factura_id INTEGER,
     cliente_id INTEGER,
     cliente_nombre TEXT NOT NULL DEFAULT '',
-    pasarela TEXT NOT NULL DEFAULT 'simulada',
     metodo TEXT NOT NULL DEFAULT 'tarjeta',
-    franquicia TEXT NOT NULL DEFAULT '',
+    entidad TEXT NOT NULL DEFAULT '',
     ultimos_digitos TEXT NOT NULL DEFAULT '',
     cuotas INTEGER NOT NULL DEFAULT 1,
     monto REAL NOT NULL DEFAULT 0,
@@ -216,8 +215,8 @@ def pago_row(row: sqlite3.Row) -> dict[str, Any]:
     """Un pago tal como lo lee el sitio.
 
     Nunca sale de aquí el número de la tarjeta: en la tabla solo están los
-    cuatro últimos dígitos y la franquicia, que es lo que se imprime en un
-    recibo.
+    cuatro últimos dígitos y la entidad (la franquicia de la tarjeta, el banco
+    del débito o el punto de pago en efectivo), que es lo que lleva un recibo.
     """
     data = dict(row)
     return {
@@ -227,9 +226,8 @@ def pago_row(row: sqlite3.Row) -> dict[str, Any]:
         'facturaId': data.get('factura_id'),
         'clienteId': data.get('cliente_id'),
         'cliente': data.get('cliente_nombre', ''),
-        'pasarela': data.get('pasarela', ''),
         'metodo': data.get('metodo', ''),
-        'franquicia': data.get('franquicia', ''),
+        'entidad': data.get('entidad', ''),
         'ultimosDigitos': data.get('ultimos_digitos', ''),
         'cuotas': int(data.get('cuotas') or 1),
         'monto': money(data.get('monto')),
@@ -300,9 +298,29 @@ def init_comercial_db(conn, crear_tablas: bool = True) -> None:
     siembra (``crear_tablas=False``).
     """
     if crear_tablas:
+        _rehacer_pagos_si_es_del_dia_anterior(conn)
         conn.executescript(COMERCIAL_SCHEMA)
     _seed_demo(conn)
     conn.commit()
+
+
+def _rehacer_pagos_si_es_del_dia_anterior(conn) -> None:
+    """Rehace ``pagos`` si quedó con las columnas de la primera versión.
+
+    La tabla nació el 2026-09-29 con ``pasarela`` y ``franquicia``, pensada para
+    saltar a una pasarela externa. Ese mismo día se cambió por un formulario
+    dentro del sitio, con ``metodo`` y ``entidad``. ``CREATE TABLE IF NOT
+    EXISTS`` no corrige una tabla que ya existe, así que la vieja se rehace:
+    solo pudo tener cobros de prueba de ese día.
+    """
+    try:
+        cursor = conn.execute('SELECT * FROM pagos LIMIT 0')
+    except Exception:
+        return  # Todavía no existe: la crea el esquema de abajo.
+    columnas = {descripcion[0] for descripcion in cursor.description or ()}
+    if 'entidad' not in columnas and 'pasarela' in columnas:
+        conn.execute('DROP TABLE pagos')
+        conn.commit()
 
 
 def _seed_demo(conn: sqlite3.Connection) -> None:

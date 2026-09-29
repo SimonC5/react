@@ -15,11 +15,22 @@ const pedido = vi.fn(() => Promise.resolve({
   factura: { id: 3, numero: 'FV-0001' },
 }));
 
-const pagarSimulado = vi.fn(() => Promise.resolve({
+const pagar = vi.fn(() => Promise.resolve({
   message: 'Transacción aprobada.',
-  pago: { referencia: 'PG-000001', estado: 'Aprobado', monto: 1011500, franquicia: 'Visa', ultimosDigitos: '1111' },
+  pago: {
+    referencia: 'PG-000001', estado: 'Aprobado', monto: 1011500,
+    metodo: 'tarjeta', entidad: 'Visa', ultimosDigitos: '1111',
+  },
   venta: { numero: 'VT-0001', estado: 'Pagada' },
 }));
+
+const configDePagos = {
+  metodos: ['tarjeta', 'pse', 'efectivo'],
+  bancos: ['Bancolombia', 'Nequi'],
+  puntosDePago: ['Efecty', 'Baloto'],
+  tiposDeDocumento: ['CC', 'CE'],
+  tarjetasDePrueba: [],
+};
 
 vi.mock('../services/api', () => ({
   apiRequest: vi.fn(() => Promise.resolve({})),
@@ -27,9 +38,8 @@ vi.mock('../services/api', () => ({
   catalogoApi: { publico: vi.fn(() => Promise.resolve(catalogo)) },
   ventasApi: { pedido },
   pagosApi: {
-    config: vi.fn(() => Promise.resolve({ pasarelas: ['payu', 'simulada'], payuPruebas: true, tarjetasDePrueba: [] })),
-    pagarSimulado,
-    iniciarPayu: vi.fn(() => Promise.resolve({ url: 'https://sandbox.example/pago', campos: {}, referencia: 'PG-1', pruebas: true })),
+    config: vi.fn(() => Promise.resolve(configDePagos)),
+    pagar,
   },
   chatbotApi: { enviar: vi.fn(() => Promise.resolve({})) },
 }));
@@ -57,7 +67,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   pedido.mockClear();
-  pagarSimulado.mockClear();
+  pagar.mockClear();
 });
 
 describe('Carrito de compras', () => {
@@ -82,7 +92,7 @@ describe('Carrito de compras', () => {
     await waitFor(() => expect(screen.getByText(/Compra VT-0001/)).not.toBeNull());
     expect(screen.getByText(/Total a pagar/)).not.toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /tarjeta de crédito/i }));
+    // El formulario abre en tarjeta, que es el medio más usado.
     fireEvent.change(screen.getByLabelText(/nombre del titular/i), { target: { value: 'ANA PEREZ' } });
     fireEvent.change(screen.getByLabelText(/número de la tarjeta/i), { target: { value: '4111111111111111' } });
     fireEvent.change(screen.getByLabelText(/^vence$/i), { target: { value: '1230' } });
@@ -90,19 +100,23 @@ describe('Carrito de compras', () => {
     fireEvent.click(screen.getByRole('button', { name: /^pagar /i }));
 
     // El número de la tarjeta sale agrupado en pantalla, pero se manda limpio.
-    await waitFor(() => expect(pagarSimulado).toHaveBeenCalledWith({
-      ventaId: 7, nombre: 'ANA PEREZ', numero: '4111111111111111', vencimiento: '12/30', cvv: '123', cuotas: 1,
-    }));
+    await waitFor(() => expect(pagar).toHaveBeenCalledWith(expect.objectContaining({
+      ventaId: 7, metodo: 'tarjeta', nombre: 'ANA PEREZ', numero: '4111111111111111',
+      vencimiento: '12/30', cvv: '123', cuotas: 1,
+    })));
     await waitFor(() => expect(screen.getByText(/Pago aprobado/)).not.toBeNull());
     expect(screen.getByText('PG-000001')).not.toBeNull();
     // La factura que salió con el pedido queda pagada.
     expect(screen.getByText(/FV-0001/)).not.toBeNull();
   });
 
-  it('no deja pagar con una tarjeta que la pasarela rechaza sin avisar', async () => {
-    pagarSimulado.mockResolvedValueOnce({
+  it('avisa cuando la tarjeta se rechaza y deja intentarlo otra vez', async () => {
+    pagar.mockResolvedValueOnce({
       message: 'Fondos insuficientes.',
-      pago: { referencia: 'PG-000002', estado: 'Rechazado', monto: 1011500, franquicia: 'Visa', ultimosDigitos: '0000' },
+      pago: {
+        referencia: 'PG-000002', estado: 'Rechazado', monto: 1011500,
+        metodo: 'tarjeta', entidad: 'Visa', ultimosDigitos: '0000',
+      },
       venta: { numero: 'VT-0001', estado: 'Registrada' },
     });
     renderTienda();
@@ -113,7 +127,6 @@ describe('Carrito de compras', () => {
     fireEvent.click(screen.getByRole('button', { name: /ir a pagar/i }));
     await waitFor(() => expect(screen.getByText(/Compra VT-0001/)).not.toBeNull());
 
-    fireEvent.click(screen.getByRole('button', { name: /tarjeta de crédito/i }));
     fireEvent.change(screen.getByLabelText(/nombre del titular/i), { target: { value: 'ANA PEREZ' } });
     fireEvent.change(screen.getByLabelText(/número de la tarjeta/i), { target: { value: '4000000200000000' } });
     fireEvent.change(screen.getByLabelText(/^vence$/i), { target: { value: '1230' } });
@@ -124,6 +137,28 @@ describe('Carrito de compras', () => {
     await waitFor(() => expect(screen.getByText(/Fondos insuficientes/)).not.toBeNull());
     expect(screen.getByText(/Pago rechazado/)).not.toBeNull();
     expect(screen.getByRole('button', { name: /intentar de nuevo/i })).not.toBeNull();
+  });
+
+  it('cambia de medio de pago sin salir de la ventana', async () => {
+    renderTienda();
+
+    fireEvent.click(await screen.findByRole('button', { name: /agregar al carrito/i }));
+    fireEvent.click(screen.getByRole('button', { name: /carrito, 1 artículo/i }));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: /ir a pagar/i }));
+    await waitFor(() => expect(screen.getByText(/Compra VT-0001/)).not.toBeNull());
+
+    // PSE pide banco y documento, no tarjeta.
+    fireEvent.click(screen.getByRole('button', { name: /^pse$/i }));
+    await waitFor(() => expect(screen.getByLabelText(/^banco$/i)).not.toBeNull());
+    expect(screen.queryByLabelText(/número de la tarjeta/i)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/^banco$/i), { target: { value: 'Bancolombia' } });
+    fireEvent.change(screen.getByLabelText(/número de documento/i), { target: { value: '1035487621' } });
+    fireEvent.click(screen.getByRole('button', { name: /^pagar /i }));
+
+    await waitFor(() => expect(pagar).toHaveBeenCalledWith(expect.objectContaining({
+      ventaId: 7, metodo: 'pse', banco: 'Bancolombia', tipoDocumento: 'CC', documento: '1035487621',
+    })));
   });
 
   it('guarda el carrito en el navegador para que sobreviva a una recarga', async () => {

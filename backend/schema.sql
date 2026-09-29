@@ -141,7 +141,8 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
 
 -- ---------------------------------------------------------------------------
 -- Pasarela de pago: cada intento de cobro de una venta, salga bien o mal.
--- De la tarjeta solo se guardan la franquicia y los cuatro últimos dígitos.
+-- "entidad" es la franquicia de la tarjeta, el banco del débito PSE o el punto
+-- de pago en efectivo. De la tarjeta solo se guardan los cuatro últimos dígitos.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS pagos (
@@ -151,9 +152,8 @@ CREATE TABLE IF NOT EXISTS pagos (
   factura_id INT NULL,
   cliente_id INT NULL,
   cliente_nombre VARCHAR(160) NOT NULL DEFAULT '',
-  pasarela VARCHAR(20) NOT NULL DEFAULT 'simulada',
   metodo VARCHAR(20) NOT NULL DEFAULT 'tarjeta',
-  franquicia VARCHAR(30) NOT NULL DEFAULT '',
+  entidad VARCHAR(60) NOT NULL DEFAULT '',
   ultimos_digitos VARCHAR(4) NOT NULL DEFAULT '',
   cuotas INT NOT NULL DEFAULT 1,
   monto DECIMAL(12,2) NOT NULL DEFAULT 0,

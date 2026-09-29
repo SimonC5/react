@@ -163,9 +163,10 @@ class Pago(Base):
     """Cada intento de cobro, salga bien o mal.
 
     Se guarda también el rechazado, porque el historial de una compra tiene
-    que poder explicar por qué no está pagada. Del medio de pago solo quedan la
-    franquicia y los cuatro últimos dígitos: el número completo y el código de
-    seguridad no se escriben en ninguna parte.
+    que poder explicar por qué no está pagada. ``entidad`` es la franquicia de
+    la tarjeta, el banco del débito PSE o el punto de pago en efectivo; de la
+    tarjeta solo quedan los cuatro últimos dígitos, y ni el número completo ni
+    el código de seguridad se escriben en ninguna parte.
     """
 
     __tablename__ = 'pagos'
@@ -175,9 +176,8 @@ class Pago(Base):
     factura_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('facturas.id', ondelete='SET NULL'))
     cliente_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('usuarios.id', ondelete='SET NULL'))
     cliente_nombre: Mapped[str] = mapped_column(String(160), nullable=False, default='')
-    pasarela: Mapped[str] = mapped_column(String(20), nullable=False, default='simulada')
     metodo: Mapped[str] = mapped_column(String(20), nullable=False, default='tarjeta')
-    franquicia: Mapped[str] = mapped_column(String(30), nullable=False, default='')
+    entidad: Mapped[str] = mapped_column(String(60), nullable=False, default='')
     ultimos_digitos: Mapped[str] = mapped_column(String(4), nullable=False, default='')
     cuotas: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     monto: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)

@@ -118,7 +118,7 @@ ETIQUETAS = [
     {'name': 'facturas', 'description': 'Emisión, consulta y descarga en PDF de las facturas.'},
     {'name': 'reportes', 'description': 'Reporte diario de ventas, exportable a PDF y a Excel.'},
     {'name': 'dashboard', 'description': 'Indicadores y gráficos del panel. Solo Administrador.'},
-    {'name': 'pagos', 'description': 'Pasarela de pago: PayU en modo de pruebas y una pasarela simulada.'},
+    {'name': 'pagos', 'description': 'Pasarela de pago del sitio: tarjeta, PSE y efectivo.'},
     {'name': 'pqr', 'description': 'Peticiones, quejas y reclamos, y la respuesta al cliente.'},
     {'name': 'chatbot', 'description': 'Asistente con inteligencia artificial sobre el catálogo real.'},
     {'name': 'sistema', 'description': 'Estado del servicio.'},

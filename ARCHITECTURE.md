@@ -15,7 +15,7 @@ react/
     components/             Vista reutilizable (botones, formularios, header, chatbot)
       Modal.jsx             Ventana emergente común: lleva el logo y se dibuja en el <body>
       CartButton.jsx        Carrito del sitio público
-      CheckoutModal.jsx     Pasarela de pago: salto a PayU o tarjeta simulada
+      CheckoutModal.jsx     Pasarela de pago: formulario con tarjeta, PSE y efectivo
       charts/               Gráficos SVG propios (barras y líneas)
       panel/                Módulos del panel: ventas, facturas, pagos, reportes, PQR, analítica
     pages/                  Vista por pantalla (inicio, productos, servicios, panel, ...)
@@ -32,7 +32,7 @@ react/
     comercial.py            Esquema y utilidades de las tablas comerciales
     ventas.py               Ventas y detalle de ventas
     facturas.py             Facturación y descarga en PDF
-    pagos.py                Pasarela de pago: PayU WebCheckout y la simulada
+    pagos.py                Pasarela de pago: tarjeta, PSE y efectivo
     reportes.py             Reporte diario de ventas
     dashboard.py            Indicadores y series para los dashboards
     pqr.py                  Peticiones, quejas y reclamos
@@ -124,27 +124,23 @@ El carrito no cobra: registra el pedido y abre `CheckoutModal`. Separarlo en dos
 pasos es lo que permite que una compra sobreviva a un pago fallido, y por eso en
 "Mis compras" hay un botón **Pagar** para las que quedaron en Registrada.
 
-`backend/pagos.py` tiene las dos pasarelas y las dos terminan igual, con una
-fila en `pagos` y, si se aprueba, la venta y la factura en Pagada:
+El cobro es un formulario dentro del sitio, sin saltar a ninguna página externa.
+`POST /api/pagos` recibe la venta y el medio, y `backend/pagos.py` decide:
 
-- **PayU WebCheckout.** `POST /api/pagos/payu` arma un formulario firmado
-  (MD5 de `ApiKey~merchantId~referenceCode~amount~currency`) y el navegador lo
-  envía a PayU. Al volver, `/pago/respuesta` le manda al backend lo que traiga
-  la dirección y **solo se da por bueno si la firma cierra**: sin eso bastaría
-  abrir esa página a mano con `transactionState=4` para marcarse una compra
-  como pagada. `POST /api/pagos/payu/confirmacion` recibe el aviso de servidor a
-  servidor, va sin token porque quien llama es PayU, y se valida igual.
-- **Pasarela simulada.** `POST /api/pagos/simulado` cobra sin salir del sitio.
-  Valida el número con Luhn y la fecha de vencimiento, y decide el resultado con
-  las mismas reglas del entorno de PayU (código 666 o `REJECTED` en el nombre
-  rechazan, una tarjeta terminada en 0000 no tiene fondos).
+- **Tarjeta**: valida el número con Luhn y la fecha de vencimiento, y aprueba o
+  rechaza. El código `666` o `REJECTED` en el nombre del titular rechazan, y una
+  tarjeta terminada en `0000` no tiene fondos: son señales fijas para poder
+  enseñar los dos casos en la sustentación sin tocar el código.
+- **PSE**: el banco tiene que ser uno de la lista que devuelve
+  `GET /api/pagos/config`, y el pago queda aprobado.
+- **Efectivo**: entrega un código para Efecty o Baloto y el pago queda
+  **Pendiente**, así que la compra sigue sin pagar hasta que entre el dinero.
 
-Sin credenciales propias se usan las del **entorno de pruebas de Colombia que
-PayU publica**, así que la tienda cobra en modo de pruebas sin crear ninguna
-cuenta. El importe nunca llega del navegador: se lee de la venta y va sellado en
-la firma. De la tarjeta solo se guardan la franquicia y los cuatro últimos
-dígitos; el número completo y el código de seguridad no se escriben en ninguna
-parte.
+Un pago aprobado deja la venta y su factura en Pagada. El importe nunca llega
+del formulario: se lee de la venta, de modo que nadie pueda pagar dos millones
+con un formulario de mil pesos. De la tarjeta solo se guardan la entidad (la
+franquicia) y los cuatro últimos dígitos; el número completo y el código de
+seguridad no se escriben en ninguna parte.
 
 ## Catálogo
 

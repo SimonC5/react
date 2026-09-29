@@ -16,8 +16,6 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import hashlib
-
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -32,7 +30,6 @@ core.DATA_DIR = _TMP
 core.DB_PATH = _TMP / 'test.db'
 
 import main  # noqa: E402
-import pagos  # noqa: E402
 
 main.DATA_DIR = _TMP
 main.DB_PATH = _TMP / 'test.db'
@@ -1318,60 +1315,59 @@ def _comprador(client, sufijo: str):
 
 def _tarjeta(venta_id: int, numero: str = '4111111111111111', **extra) -> dict:
     datos = {
-        'ventaId': venta_id, 'nombre': 'PAGO CLIENTE', 'numero': numero,
+        'ventaId': venta_id, 'metodo': 'tarjeta', 'nombre': 'PAGO CLIENTE', 'numero': numero,
         'vencimiento': '12/30', 'cvv': '123', 'cuotas': 1,
     }
     datos.update(extra)
     return datos
 
 
-def test_la_firma_de_payu_coincide_con_el_ejemplo_de_su_documentacion():
-    """El ejemplo publicado por PayU es la única forma de comprobar la firma aquí.
-
-    El entorno de pruebas de PayU no se puede llamar desde las pruebas, así que
-    se verifica contra el valor que la propia documentación da por bueno para
-    ``4Vj8eK4rloUd272L48hsrarnUA~508029~TestPayU~20000~COP``.
-    """
-    credenciales = {'apiKey': '4Vj8eK4rloUd272L48hsrarnUA', 'merchantId': '508029'}
-    assert pagos.firma_peticion('TestPayU', 20000, credenciales) == '7ee7cf808ce6a39b17481c54f2c57acc'
+def test_el_formulario_de_pago_ofrece_los_tres_medios(client, admin):
+    datos = client.get('/api/pagos/config', headers=admin).json()
+    assert datos['metodos'] == ['tarjeta', 'pse', 'efectivo']
+    assert 'Bancolombia' in datos['bancos']
+    assert 'Efecty' in datos['puntosDePago']
+    # Sin sesión no se ve nada de esto.
+    assert client.get('/api/pagos/config').status_code == 401
 
 
-def test_el_pago_simulado_aprueba_y_deja_pagadas_la_venta_y_la_factura(client):
+def test_pagar_con_tarjeta_deja_pagadas_la_venta_y_la_factura(client):
     cabeceras, pedido = _comprador(client, '01')
     venta, factura = pedido['venta'], pedido['factura']
     assert venta['estado'] == 'Registrada' and factura['estado'] == 'Emitida'
 
-    respuesta = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id']))
+    respuesta = client.post('/api/pagos', headers=cabeceras, json=_tarjeta(venta['id']))
     assert respuesta.status_code == 201, respuesta.text
     pago = respuesta.json()['pago']
     assert pago['estado'] == 'Aprobado'
     assert pago['monto'] == venta['total']
     # De la tarjeta solo quedan la franquicia y los cuatro últimos dígitos.
-    assert pago['franquicia'] == 'Visa' and pago['ultimosDigitos'] == '1111'
+    assert pago['metodo'] == 'tarjeta' and pago['entidad'] == 'Visa'
+    assert pago['ultimosDigitos'] == '1111'
     assert '4111111111111111' not in respuesta.text
 
     assert client.get(f"/api/ventas/{venta['id']}", headers=cabeceras).json()['venta']['estado'] == 'Pagada'
     assert client.get(f"/api/facturas/{factura['id']}", headers=cabeceras).json()['factura']['estado'] == 'Pagada'
 
     # Una compra pagada no se vuelve a cobrar.
-    assert client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id'])).status_code == 400
+    assert client.post('/api/pagos', headers=cabeceras, json=_tarjeta(venta['id'])).status_code == 400
 
 
-def test_el_pago_simulado_rechaza_y_la_compra_sigue_sin_pagar(client):
+def test_la_tarjeta_rechazada_no_paga_la_compra_y_dice_por_que(client):
     cabeceras, pedido = _comprador(client, '02')
     venta = pedido['venta']
 
-    fondos = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id'], '4000000200000000'))
+    fondos = client.post('/api/pagos', headers=cabeceras, json=_tarjeta(venta['id'], '4000000200000000'))
     assert fondos.status_code == 201
     assert fondos.json()['pago']['estado'] == 'Rechazado'
     assert 'Fondos insuficientes' in fondos.json()['message']
     assert fondos.json()['venta']['estado'] == 'Registrada'
 
-    banco = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id'], cvv='666'))
+    banco = client.post('/api/pagos', headers=cabeceras, json=_tarjeta(venta['id'], cvv='666'))
     assert banco.json()['pago']['estado'] == 'Rechazado'
 
     # Un rechazo no impide volver a intentarlo, y el segundo intento sí pasa.
-    bueno = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id']))
+    bueno = client.post('/api/pagos', headers=cabeceras, json=_tarjeta(venta['id']))
     assert bueno.json()['pago']['estado'] == 'Aprobado'
 
 
@@ -1380,74 +1376,80 @@ def test_la_tarjeta_invalida_no_llega_a_cobrarse(client):
     venta_id = pedido['venta']['id']
 
     # Dígito de control incorrecto, fecha vencida y código no numérico.
-    assert client.post('/api/pagos/simulado', headers=cabeceras,
+    assert client.post('/api/pagos', headers=cabeceras,
                        json=_tarjeta(venta_id, '4111111111111112')).status_code == 400
-    assert client.post('/api/pagos/simulado', headers=cabeceras,
+    assert client.post('/api/pagos', headers=cabeceras,
                        json=_tarjeta(venta_id, vencimiento='01/20')).status_code == 400
-    assert client.post('/api/pagos/simulado', headers=cabeceras,
+    assert client.post('/api/pagos', headers=cabeceras,
                        json=_tarjeta(venta_id, cvv='abc')).status_code == 400
-    # Y lo que ni siquiera tiene forma de tarjeta lo para Pydantic antes.
-    assert client.post('/api/pagos/simulado', headers=cabeceras,
-                       json=_tarjeta(venta_id, '12')).status_code == 422
 
     # Y ninguno de esos intentos dejó rastro de cobro.
     assert client.get('/api/pagos', headers=cabeceras).json()['pagos'] == []
+
+
+def test_pagar_con_pse_debita_del_banco_elegido(client):
+    cabeceras, pedido = _comprador(client, '08')
+    venta = pedido['venta']
+
+    respuesta = client.post('/api/pagos', headers=cabeceras, json={
+        'ventaId': venta['id'], 'metodo': 'pse', 'banco': 'Bancolombia',
+        'tipoDocumento': 'CC', 'documento': '1035487621',
+    })
+    assert respuesta.status_code == 201, respuesta.text
+    pago = respuesta.json()['pago']
+    assert pago['estado'] == 'Aprobado' and pago['entidad'] == 'Bancolombia'
+    assert respuesta.json()['venta']['estado'] == 'Pagada'
+
+
+def test_pse_exige_un_banco_de_la_lista(client):
+    cabeceras, pedido = _comprador(client, '09')
+    base = {'ventaId': pedido['venta']['id'], 'metodo': 'pse', 'documento': '1035487621'}
+    assert client.post('/api/pagos', headers=cabeceras, json={**base, 'banco': 'Banco inventado'}).status_code == 400
+    assert client.post('/api/pagos', headers=cabeceras, json={**base, 'banco': ''}).status_code == 400
+    assert client.post('/api/pagos', headers=cabeceras,
+                       json={**base, 'banco': 'Nequi', 'documento': 'abc'}).status_code == 400
+
+
+def test_el_pago_en_efectivo_queda_pendiente_hasta_que_entre_el_dinero(client):
+    cabeceras, pedido = _comprador(client, '10')
+    venta = pedido['venta']
+
+    respuesta = client.post('/api/pagos', headers=cabeceras, json={
+        'ventaId': venta['id'], 'metodo': 'efectivo', 'puntoDePago': 'Efecty',
+    })
+    assert respuesta.status_code == 201, respuesta.text
+    pago = respuesta.json()['pago']
+    assert pago['estado'] == 'Pendiente' and pago['entidad'] == 'Efecty'
+    # Se le da un código para pagar y la compra sigue sin pagar.
+    assert pago['transaccion'] and pago['transaccion'] in respuesta.json()['message']
+    assert respuesta.json()['venta']['estado'] == 'Registrada'
+    assert client.get(f"/api/facturas/{pedido['factura']['id']}", headers=cabeceras).json()['factura']['estado'] == 'Emitida'
 
 
 def test_nadie_paga_la_compra_de_otro_ni_ve_sus_pagos(client):
     uno, pedido_uno = _comprador(client, '04')
     otro, _ = _comprador(client, '05')
 
-    ajena = client.post('/api/pagos/simulado', headers=otro, json=_tarjeta(pedido_uno['venta']['id']))
+    ajena = client.post('/api/pagos', headers=otro, json=_tarjeta(pedido_uno['venta']['id']))
     assert ajena.status_code == 403
 
-    client.post('/api/pagos/simulado', headers=uno, json=_tarjeta(pedido_uno['venta']['id']))
+    client.post('/api/pagos', headers=uno, json=_tarjeta(pedido_uno['venta']['id']))
     assert len(client.get('/api/pagos', headers=uno).json()['pagos']) == 1
     assert client.get('/api/pagos', headers=otro).json()['pagos'] == []
-    assert client.post('/api/pagos/simulado', json=_tarjeta(1)).status_code == 401
+    assert client.post('/api/pagos', json=_tarjeta(1)).status_code == 401
 
 
-def test_payu_firma_el_formulario_y_solo_acepta_la_respuesta_firmada(client):
-    cabeceras, pedido = _comprador(client, '06')
+def test_el_importe_sale_de_la_venta_y_no_del_formulario(client, admin):
+    cabeceras, pedido = _comprador(client, '11')
     venta = pedido['venta']
 
-    formulario = client.post('/api/pagos/payu', headers=cabeceras,
-                             json={'ventaId': venta['id'], 'origen': 'http://localhost:5173'})
-    assert formulario.status_code == 200, formulario.text
-    datos = formulario.json()
-    campos = datos['campos']
-    assert datos['pruebas'] is True and campos['test'] == '1'
-    # El importe no lo pone el navegador: sale de la venta y va sellado en la firma.
-    assert campos['amount'] == str(int(venta['total']))
-    assert campos['signature'] == pagos.firma_peticion(datos['referencia'], venta['total'])
-    assert campos['responseUrl'] == 'http://localhost:5173/pago/respuesta'
+    # Aunque el formulario mande otro valor, se cobra el de la venta.
+    respuesta = client.post('/api/pagos', headers=cabeceras,
+                            json={**_tarjeta(venta['id']), 'monto': 1000, 'total': 1000})
+    assert respuesta.json()['pago']['monto'] == venta['total']
 
-    def responder(estado: str, firma: str | None = None) -> dict:
-        cuerpo = {
-            'merchantId': campos['merchantId'], 'referenceCode': datos['referencia'],
-            'TX_VALUE': campos['amount'], 'currency': 'COP', 'transactionState': estado,
-            'message': 'APPROVED', 'transactionId': 'trx-1',
-        }
-        credenciales = pagos.payu_config()
-        cadena = f"{credenciales['apiKey']}~{credenciales['merchantId']}~{datos['referencia']}~{campos['amount']}~COP~{estado}"
-        cuerpo['signature'] = firma if firma is not None else hashlib.md5(cadena.encode('utf-8')).hexdigest()
-        return cuerpo
-
-    # Sin la firma correcta no se toca nada: si no, bastaría abrir la dirección
-    # de vuelta a mano para darse por pagado.
-    assert client.post('/api/pagos/payu/respuesta', headers=cabeceras,
-                       json=responder('4', firma='0' * 32)).status_code == 400
-    assert client.get(f"/api/ventas/{venta['id']}", headers=cabeceras).json()['venta']['estado'] == 'Registrada'
-
-    aprobada = client.post('/api/pagos/payu/respuesta', headers=cabeceras, json=responder('4'))
-    assert aprobada.status_code == 200, aprobada.text
-    assert aprobada.json()['pago']['estado'] == 'Aprobado'
-    assert client.get(f"/api/ventas/{venta['id']}", headers=cabeceras).json()['venta']['estado'] == 'Pagada'
-
-
-def test_payu_solo_devuelve_el_navegador_a_una_direccion_del_sitio(client):
-    cabeceras, pedido = _comprador(client, '07')
-    respuesta = client.post('/api/pagos/payu', headers=cabeceras,
-                            json={'ventaId': pedido['venta']['id'], 'origen': 'https://sitio-ajeno.com'})
-    assert respuesta.status_code == 200
-    assert 'sitio-ajeno' not in respuesta.json()['campos']['responseUrl']
+    # Y quien administra ve ese pago en el historial de la tienda.
+    todos = client.get('/api/pagos', headers=admin).json()
+    assert any(pago['referencia'] == respuesta.json()['pago']['referencia'] for pago in todos['pagos'])
+    assert todos['resumen']['aprobado'] > 0
+    assert client.get('/api/pagos?estado=Inventado', headers=admin).status_code == 400

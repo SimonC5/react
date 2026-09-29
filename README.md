@@ -47,9 +47,6 @@ Backend (`backend/.env`, a partir de `backend/.env.example`):
 | `FRONTEND_URL`, `CORS_ORIGINS` | Dominios autorizados por CORS en producción. |
 | `IA_API_KEY` | Clave del proveedor de IA que usa el chatbot. |
 | `IA_API_URL`, `IA_MODEL`, `IA_TIMEOUT` | Endpoint, modelo y tiempo de espera del proveedor. |
-| `PAYU_MERCHANT_ID`, `PAYU_ACCOUNT_ID`, `PAYU_API_KEY`, `PAYU_URL` | Credenciales del comercio en PayU. Sin ellas el proyecto usa las del **entorno de pruebas de Colombia que PayU publica en su documentación**, así que la pasarela funciona sin crear ninguna cuenta y sin mover dinero. |
-| `PAYU_TEST` | `1` fuerza el modo de pruebas, `0` el cobro real. Sin esta variable se deduce: es modo de pruebas mientras la clave sea la publicada por PayU. |
-| `API_PUBLIC_URL` | Dirección pública de la API, a la que PayU manda la confirmación de servidor a servidor. En Render se deduce sola; en el computador propio no existe y no se manda. |
 | `EMAIL_API_KEY`, `EMAIL_FROM` | Envío de correo por API web. Es la forma recomendada y **la única que funciona en el plan gratuito de Render**, que bloquea la salida a los puertos de SMTP. La clave sale de una cuenta gratuita de [Brevo](https://www.brevo.com) (SMTP & API → API Keys) y `EMAIL_FROM` es el correo verificado allí. |
 | `SMTP_USER`, `SMTP_PASSWORD` | Envío por SMTP, para el computador propio o un plan de pago. Con Gmail, Outlook o Yahoo no hace falta nada más: el servidor se deduce del dominio. Con Gmail la contraseña es una **contraseña de aplicación** de 16 letras ([myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)), no la de la cuenta. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USE_TLS`, `SMTP_USE_SSL` | Opcionales, solo para un proveedor que no sea de los conocidos. |
@@ -71,7 +68,7 @@ Si no hay clave configurada, el chatbot sigue respondiendo con la información r
 | Dashboards | Cards de indicadores, gráfico de barras y gráfico lineal por día, semana o mes, con filtros y diferenciados por rol. |
 | PQR | Radicación y seguimiento de peticiones, quejas y reclamos con estados Pendiente, En proceso, Respondida y Cerrada. |
 | Chatbot | Asistente en el sitio que responde a través de FastAPI usando el servicio de IA configurado. |
-| Pasarela de pago | El carrito registra el pedido y después cobra. Hay dos pasarelas: **PayU WebCheckout** en su entorno de pruebas (el navegador sale a PayU y vuelve a `/pago/respuesta`) y una **pasarela simulada** que cobra sin salir del sitio, para cuando no hay internet. Un pago aprobado deja la venta y su factura en Pagada; uno rechazado dice por qué y la compra se puede volver a pagar desde *Mis compras*. De la tarjeta solo se guardan la franquicia y los cuatro últimos dígitos. |
+| Pasarela de pago | El carrito registra el pedido y después cobra, con un formulario dentro del propio sitio: **tarjeta** (validada con Luhn), **PSE** eligiendo banco, y **efectivo** con un código para Efecty o Baloto. Un pago aprobado deja la venta y su factura en Pagada; uno rechazado dice por qué y la compra se puede volver a pagar desde *Mis compras*; el de efectivo queda Pendiente hasta que entre el dinero. De la tarjeta solo se guardan la franquicia y los cuatro últimos dígitos. |
 | Recuperación de contraseña | Enlace de un solo uso con vigencia de 60 minutos, enviado por correo en texto y HTML. Si no hay SMTP configurado el enlace se imprime en la consola del backend y la pantalla lo dice, en vez de prometer un correo que no sale. El token se guarda solo como hash y nunca viaja en la respuesta de la API. |
 | Servidor de correo | El administrador ve en el panel (Dashboard → Servidor de correo) si está configurado, por dónde salen los correos, qué falta si no, y puede enviarse un correo de prueba. Avisa aparte si está configurado por SMTP corriendo en Render, donde el plan gratuito lo bloquea. |
 
@@ -105,10 +102,8 @@ FastAPI calcula los indicadores y las series con consultas a la base de datos.
 | GET | `/api/chatbot/conversaciones` | Conversaciones del usuario. |
 | GET | `/api/chatbot/conversaciones/{id}` | Mensajes de una conversación. |
 | GET | `/api/chatbot/estado` | Indica si hay servicio de IA configurado. |
-| GET | `/api/pagos/config` | Pasarelas disponibles y tarjetas de prueba. |
-| POST | `/api/pagos/payu` | Formulario firmado para saltar a PayU. |
-| POST | `/api/pagos/payu/respuesta` | Confirma el pago al volver de PayU, comprobando la firma. |
-| POST | `/api/pagos/simulado` | Cobra con la pasarela simulada del sitio. |
+| GET | `/api/pagos/config` | Medios de pago, bancos, puntos de pago y tarjetas de prueba. |
+| POST | `/api/pagos` | Cobra una venta con el medio elegido. |
 | GET | `/api/pagos` | Historial de pagos, filtrable por estado y referencia. |
 | GET | `/api/pagos/{id}` | Detalle de un pago. |
 

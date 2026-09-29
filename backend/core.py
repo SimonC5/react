@@ -66,10 +66,8 @@ ORIGENES_LOCALES = [
 def origenes_permitidos() -> list[str]:
     """Direcciones desde las que se acepta el sitio: las de casa y las del hosting.
 
-    Lo usan el CORS y la pasarela de pago, que tiene que decirle a PayU a qué
-    dirección devolver el navegador. Las dos listas tienen que ser la misma: si
-    una acepta un dominio que la otra no, el pago vuelve a una página que el
-    navegador bloquea.
+    Es la lista del CORS: los orígenes locales de Vite más lo que se configure
+    con FRONTEND_URL o CORS_ORIGINS en el despliegue.
     """
     configurados = f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
     publicos = [dominio_publico(valor) for valor in configurados]

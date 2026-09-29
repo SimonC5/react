@@ -4,8 +4,8 @@ import { fechaCorta, formatoMoneda } from '../../utils/formato';
 
 const filtrosVacios = { estado: '', referencia: '' };
 
-// La pasarela se guarda en minúscula; en pantalla se escribe como se llama.
-const PASARELAS = { payu: 'PayU', simulada: 'Simulada' };
+// El medio se guarda en minúscula; en pantalla se escribe como se llama.
+const MEDIOS = { tarjeta: 'Tarjeta', pse: 'PSE', efectivo: 'Efectivo' };
 
 const COLORES = {
   Aprobado: 'bg-emerald-500/15 text-emerald-300',
@@ -106,8 +106,8 @@ function PaymentsModule({ titulo = 'Pagos' }) {
             <tr>
               <th className="px-3 py-2">Referencia</th>
               <th className="px-3 py-2">Fecha</th>
-              <th className="px-3 py-2">Pasarela</th>
               <th className="px-3 py-2">Medio</th>
+              <th className="px-3 py-2">Entidad</th>
               <th className="px-3 py-2">Valor</th>
               <th className="px-3 py-2">Estado</th>
             </tr>
@@ -117,11 +117,9 @@ function PaymentsModule({ titulo = 'Pagos' }) {
               <tr key={pago.id} className="border-t border-slate-800">
                 <td className="px-3 py-2 font-semibold text-white">{pago.referencia}</td>
                 <td className="px-3 py-2">{fechaCorta(pago.fecha)}</td>
-                <td className="px-3 py-2">{PASARELAS[pago.pasarela] || pago.pasarela}</td>
+                <td className="px-3 py-2">{MEDIOS[pago.metodo] || pago.metodo}</td>
                 <td className="px-3 py-2">
-                  {pago.ultimosDigitos
-                    ? `${pago.franquicia} ····${pago.ultimosDigitos}`
-                    : 'El que eligió en PayU'}
+                  {pago.ultimosDigitos ? `${pago.entidad} ····${pago.ultimosDigitos}` : pago.entidad}
                 </td>
                 <td className="px-3 py-2 font-medium text-cyan-300">{formatoMoneda(pago.monto)}</td>
                 <td className="px-3 py-2">
