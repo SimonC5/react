@@ -16,6 +16,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import hashlib
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -30,6 +32,7 @@ core.DATA_DIR = _TMP
 core.DB_PATH = _TMP / 'test.db'
 
 import main  # noqa: E402
+import pagos  # noqa: E402
 
 main.DATA_DIR = _TMP
 main.DB_PATH = _TMP / 'test.db'
@@ -1293,3 +1296,158 @@ def test_los_modelos_orm_se_configuran_y_estan_relacionados():
     assert models.Venta.detalle.property.mapper.class_ is models.DetalleVenta
     assert models.DetalleVenta.venta.property.mapper.class_ is models.Venta
     assert models.Mensaje.conversacion.property.mapper.class_ is models.Conversacion
+
+
+# --- Pasarela de pago ------------------------------------------------------
+
+def _comprador(client, sufijo: str):
+    """Crea un cliente con su propia compra sin pagar y devuelve sus datos."""
+    correo = f'pago{sufijo}@simonsc.com'
+    client.post('/api/auth/register', json={
+        'name': 'Pago', 'lastName': 'Cliente', 'documentType': 'CC', 'documentNumber': f'88{sufijo}8888',
+        'address': 'Calle 10 #20-30', 'phone': '3001234567', 'email': correo, 'password': 'Cliente1234',
+    })
+    token = client.post('/api/auth/login', json={'email': correo, 'password': 'Cliente1234'}).json()['token']
+    cabeceras = {'Authorization': f'Bearer {token}'}
+    producto = client.get('/api/catalogo').json()['productos'][0]
+    pedido = client.post('/api/ventas/pedido', headers=cabeceras, json={
+        'items': [{'tipo': 'producto', 'itemId': producto['id'], 'cantidad': 1}],
+    }).json()
+    return cabeceras, pedido
+
+
+def _tarjeta(venta_id: int, numero: str = '4111111111111111', **extra) -> dict:
+    datos = {
+        'ventaId': venta_id, 'nombre': 'PAGO CLIENTE', 'numero': numero,
+        'vencimiento': '12/30', 'cvv': '123', 'cuotas': 1,
+    }
+    datos.update(extra)
+    return datos
+
+
+def test_la_firma_de_payu_coincide_con_el_ejemplo_de_su_documentacion():
+    """El ejemplo publicado por PayU es la única forma de comprobar la firma aquí.
+
+    El entorno de pruebas de PayU no se puede llamar desde las pruebas, así que
+    se verifica contra el valor que la propia documentación da por bueno para
+    ``4Vj8eK4rloUd272L48hsrarnUA~508029~TestPayU~20000~COP``.
+    """
+    credenciales = {'apiKey': '4Vj8eK4rloUd272L48hsrarnUA', 'merchantId': '508029'}
+    assert pagos.firma_peticion('TestPayU', 20000, credenciales) == '7ee7cf808ce6a39b17481c54f2c57acc'
+
+
+def test_el_pago_simulado_aprueba_y_deja_pagadas_la_venta_y_la_factura(client):
+    cabeceras, pedido = _comprador(client, '01')
+    venta, factura = pedido['venta'], pedido['factura']
+    assert venta['estado'] == 'Registrada' and factura['estado'] == 'Emitida'
+
+    respuesta = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id']))
+    assert respuesta.status_code == 201, respuesta.text
+    pago = respuesta.json()['pago']
+    assert pago['estado'] == 'Aprobado'
+    assert pago['monto'] == venta['total']
+    # De la tarjeta solo quedan la franquicia y los cuatro últimos dígitos.
+    assert pago['franquicia'] == 'Visa' and pago['ultimosDigitos'] == '1111'
+    assert '4111111111111111' not in respuesta.text
+
+    assert client.get(f"/api/ventas/{venta['id']}", headers=cabeceras).json()['venta']['estado'] == 'Pagada'
+    assert client.get(f"/api/facturas/{factura['id']}", headers=cabeceras).json()['factura']['estado'] == 'Pagada'
+
+    # Una compra pagada no se vuelve a cobrar.
+    assert client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id'])).status_code == 400
+
+
+def test_el_pago_simulado_rechaza_y_la_compra_sigue_sin_pagar(client):
+    cabeceras, pedido = _comprador(client, '02')
+    venta = pedido['venta']
+
+    fondos = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id'], '4000000200000000'))
+    assert fondos.status_code == 201
+    assert fondos.json()['pago']['estado'] == 'Rechazado'
+    assert 'Fondos insuficientes' in fondos.json()['message']
+    assert fondos.json()['venta']['estado'] == 'Registrada'
+
+    banco = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id'], cvv='666'))
+    assert banco.json()['pago']['estado'] == 'Rechazado'
+
+    # Un rechazo no impide volver a intentarlo, y el segundo intento sí pasa.
+    bueno = client.post('/api/pagos/simulado', headers=cabeceras, json=_tarjeta(venta['id']))
+    assert bueno.json()['pago']['estado'] == 'Aprobado'
+
+
+def test_la_tarjeta_invalida_no_llega_a_cobrarse(client):
+    cabeceras, pedido = _comprador(client, '03')
+    venta_id = pedido['venta']['id']
+
+    # Dígito de control incorrecto, fecha vencida y código no numérico.
+    assert client.post('/api/pagos/simulado', headers=cabeceras,
+                       json=_tarjeta(venta_id, '4111111111111112')).status_code == 400
+    assert client.post('/api/pagos/simulado', headers=cabeceras,
+                       json=_tarjeta(venta_id, vencimiento='01/20')).status_code == 400
+    assert client.post('/api/pagos/simulado', headers=cabeceras,
+                       json=_tarjeta(venta_id, cvv='abc')).status_code == 400
+    # Y lo que ni siquiera tiene forma de tarjeta lo para Pydantic antes.
+    assert client.post('/api/pagos/simulado', headers=cabeceras,
+                       json=_tarjeta(venta_id, '12')).status_code == 422
+
+    # Y ninguno de esos intentos dejó rastro de cobro.
+    assert client.get('/api/pagos', headers=cabeceras).json()['pagos'] == []
+
+
+def test_nadie_paga_la_compra_de_otro_ni_ve_sus_pagos(client):
+    uno, pedido_uno = _comprador(client, '04')
+    otro, _ = _comprador(client, '05')
+
+    ajena = client.post('/api/pagos/simulado', headers=otro, json=_tarjeta(pedido_uno['venta']['id']))
+    assert ajena.status_code == 403
+
+    client.post('/api/pagos/simulado', headers=uno, json=_tarjeta(pedido_uno['venta']['id']))
+    assert len(client.get('/api/pagos', headers=uno).json()['pagos']) == 1
+    assert client.get('/api/pagos', headers=otro).json()['pagos'] == []
+    assert client.post('/api/pagos/simulado', json=_tarjeta(1)).status_code == 401
+
+
+def test_payu_firma_el_formulario_y_solo_acepta_la_respuesta_firmada(client):
+    cabeceras, pedido = _comprador(client, '06')
+    venta = pedido['venta']
+
+    formulario = client.post('/api/pagos/payu', headers=cabeceras,
+                             json={'ventaId': venta['id'], 'origen': 'http://localhost:5173'})
+    assert formulario.status_code == 200, formulario.text
+    datos = formulario.json()
+    campos = datos['campos']
+    assert datos['pruebas'] is True and campos['test'] == '1'
+    # El importe no lo pone el navegador: sale de la venta y va sellado en la firma.
+    assert campos['amount'] == str(int(venta['total']))
+    assert campos['signature'] == pagos.firma_peticion(datos['referencia'], venta['total'])
+    assert campos['responseUrl'] == 'http://localhost:5173/pago/respuesta'
+
+    def responder(estado: str, firma: str | None = None) -> dict:
+        cuerpo = {
+            'merchantId': campos['merchantId'], 'referenceCode': datos['referencia'],
+            'TX_VALUE': campos['amount'], 'currency': 'COP', 'transactionState': estado,
+            'message': 'APPROVED', 'transactionId': 'trx-1',
+        }
+        credenciales = pagos.payu_config()
+        cadena = f"{credenciales['apiKey']}~{credenciales['merchantId']}~{datos['referencia']}~{campos['amount']}~COP~{estado}"
+        cuerpo['signature'] = firma if firma is not None else hashlib.md5(cadena.encode('utf-8')).hexdigest()
+        return cuerpo
+
+    # Sin la firma correcta no se toca nada: si no, bastaría abrir la dirección
+    # de vuelta a mano para darse por pagado.
+    assert client.post('/api/pagos/payu/respuesta', headers=cabeceras,
+                       json=responder('4', firma='0' * 32)).status_code == 400
+    assert client.get(f"/api/ventas/{venta['id']}", headers=cabeceras).json()['venta']['estado'] == 'Registrada'
+
+    aprobada = client.post('/api/pagos/payu/respuesta', headers=cabeceras, json=responder('4'))
+    assert aprobada.status_code == 200, aprobada.text
+    assert aprobada.json()['pago']['estado'] == 'Aprobado'
+    assert client.get(f"/api/ventas/{venta['id']}", headers=cabeceras).json()['venta']['estado'] == 'Pagada'
+
+
+def test_payu_solo_devuelve_el_navegador_a_una_direccion_del_sitio(client):
+    cabeceras, pedido = _comprador(client, '07')
+    respuesta = client.post('/api/pagos/payu', headers=cabeceras,
+                            json={'ventaId': pedido['venta']['id'], 'origen': 'https://sitio-ajeno.com'})
+    assert respuesta.status_code == 200
+    assert 'sitio-ajeno' not in respuesta.json()['campos']['responseUrl']

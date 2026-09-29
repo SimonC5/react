@@ -11,8 +11,14 @@ const catalogo = {
 
 const pedido = vi.fn(() => Promise.resolve({
   message: 'Pedido registrado correctamente.',
-  venta: { numero: 'VT-0001' },
-  factura: { numero: 'FV-0001' },
+  venta: { id: 7, numero: 'VT-0001', subtotal: 850000, impuestos: 161500, total: 1011500 },
+  factura: { id: 3, numero: 'FV-0001' },
+}));
+
+const pagarSimulado = vi.fn(() => Promise.resolve({
+  message: 'Transacción aprobada.',
+  pago: { referencia: 'PG-000001', estado: 'Aprobado', monto: 1011500, franquicia: 'Visa', ultimosDigitos: '1111' },
+  venta: { numero: 'VT-0001', estado: 'Pagada' },
 }));
 
 vi.mock('../services/api', () => ({
@@ -20,6 +26,11 @@ vi.mock('../services/api', () => ({
   authApi: { me: vi.fn(() => Promise.resolve({ user: usuario })) },
   catalogoApi: { publico: vi.fn(() => Promise.resolve(catalogo)) },
   ventasApi: { pedido },
+  pagosApi: {
+    config: vi.fn(() => Promise.resolve({ pasarelas: ['payu', 'simulada'], payuPruebas: true, tarjetasDePrueba: [] })),
+    pagarSimulado,
+    iniciarPayu: vi.fn(() => Promise.resolve({ url: 'https://sandbox.example/pago', campos: {}, referencia: 'PG-1', pruebas: true })),
+  },
   chatbotApi: { enviar: vi.fn(() => Promise.resolve({})) },
 }));
 
@@ -46,10 +57,11 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   pedido.mockClear();
+  pagarSimulado.mockClear();
 });
 
 describe('Carrito de compras', () => {
-  it('agrega un producto del catálogo y confirma el pedido', async () => {
+  it('agrega un producto del catálogo y lo lleva a la pasarela de pago', async () => {
     renderTienda();
 
     fireEvent.click(await screen.findByRole('button', { name: /agregar al carrito/i }));
@@ -62,12 +74,56 @@ describe('Carrito de compras', () => {
     expect(ventana.querySelector('img[alt="Logo SimonC"]')).not.toBeNull();
     expect(screen.getAllByText('SimonC Vision One').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('button', { name: /confirmar pedido/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ir a pagar/i }));
 
     await waitFor(() => expect(pedido).toHaveBeenCalledWith({ items: [{ tipo: 'producto', itemId: 1, cantidad: 1 }] }));
-    await waitFor(() => expect(screen.getByText(/VT-0001/)).not.toBeNull());
-    // La factura sale con el pedido, sin que nadie la genere a mano.
+
+    // El pedido queda registrado y el carrito da paso a la pasarela de pago.
+    await waitFor(() => expect(screen.getByText(/Compra VT-0001/)).not.toBeNull());
+    expect(screen.getByText(/Total a pagar/)).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /tarjeta de crédito/i }));
+    fireEvent.change(screen.getByLabelText(/nombre del titular/i), { target: { value: 'ANA PEREZ' } });
+    fireEvent.change(screen.getByLabelText(/número de la tarjeta/i), { target: { value: '4111111111111111' } });
+    fireEvent.change(screen.getByLabelText(/^vence$/i), { target: { value: '1230' } });
+    fireEvent.change(screen.getByLabelText(/^código$/i), { target: { value: '123' } });
+    fireEvent.click(screen.getByRole('button', { name: /^pagar /i }));
+
+    // El número de la tarjeta sale agrupado en pantalla, pero se manda limpio.
+    await waitFor(() => expect(pagarSimulado).toHaveBeenCalledWith({
+      ventaId: 7, nombre: 'ANA PEREZ', numero: '4111111111111111', vencimiento: '12/30', cvv: '123', cuotas: 1,
+    }));
+    await waitFor(() => expect(screen.getByText(/Pago aprobado/)).not.toBeNull());
+    expect(screen.getByText('PG-000001')).not.toBeNull();
+    // La factura que salió con el pedido queda pagada.
     expect(screen.getByText(/FV-0001/)).not.toBeNull();
+  });
+
+  it('no deja pagar con una tarjeta que la pasarela rechaza sin avisar', async () => {
+    pagarSimulado.mockResolvedValueOnce({
+      message: 'Fondos insuficientes.',
+      pago: { referencia: 'PG-000002', estado: 'Rechazado', monto: 1011500, franquicia: 'Visa', ultimosDigitos: '0000' },
+      venta: { numero: 'VT-0001', estado: 'Registrada' },
+    });
+    renderTienda();
+
+    fireEvent.click(await screen.findByRole('button', { name: /agregar al carrito/i }));
+    fireEvent.click(screen.getByRole('button', { name: /carrito, 1 artículo/i }));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: /ir a pagar/i }));
+    await waitFor(() => expect(screen.getByText(/Compra VT-0001/)).not.toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: /tarjeta de crédito/i }));
+    fireEvent.change(screen.getByLabelText(/nombre del titular/i), { target: { value: 'ANA PEREZ' } });
+    fireEvent.change(screen.getByLabelText(/número de la tarjeta/i), { target: { value: '4000000200000000' } });
+    fireEvent.change(screen.getByLabelText(/^vence$/i), { target: { value: '1230' } });
+    fireEvent.change(screen.getByLabelText(/^código$/i), { target: { value: '123' } });
+    fireEvent.click(screen.getByRole('button', { name: /^pagar /i }));
+
+    // Se dice el motivo y la compra sigue sin pagar, con opción de reintentar.
+    await waitFor(() => expect(screen.getByText(/Fondos insuficientes/)).not.toBeNull());
+    expect(screen.getByText(/Pago rechazado/)).not.toBeNull();
+    expect(screen.getByRole('button', { name: /intentar de nuevo/i })).not.toBeNull();
   });
 
   it('guarda el carrito en el navegador para que sobreviva a una recarga', async () => {

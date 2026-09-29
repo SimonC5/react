@@ -55,6 +55,27 @@ def dominio_publico(valor: str) -> str:
     return f'{esquema}://{dominio}{barra}{ruta}'
 
 
+ORIGENES_LOCALES = [
+    'http://localhost:5173', 'http://127.0.0.1:5173',
+    'http://localhost:5174', 'http://127.0.0.1:5174',
+    'http://localhost:5175', 'http://127.0.0.1:5175',
+    'http://localhost:5176', 'http://127.0.0.1:5176',
+]
+
+
+def origenes_permitidos() -> list[str]:
+    """Direcciones desde las que se acepta el sitio: las de casa y las del hosting.
+
+    Lo usan el CORS y la pasarela de pago, que tiene que decirle a PayU a qué
+    dirección devolver el navegador. Las dos listas tienen que ser la misma: si
+    una acepta un dominio que la otra no, el pago vuelve a una página que el
+    navegador bloquea.
+    """
+    configurados = f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
+    publicos = [dominio_publico(valor) for valor in configurados]
+    return list(dict.fromkeys(ORIGENES_LOCALES + [origen for origen in publicos if origen]))
+
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'data'
 DB_PATH = DATA_DIR / 'simonsc.db'

@@ -47,6 +47,14 @@
     {
       "key": "documentoNuevo",
       "value": ""
+    },
+    {
+      "key": "ventaAPagar",
+      "value": ""
+    },
+    {
+      "key": "referenciaPago",
+      "value": ""
     }
   ],
   "item": [
@@ -630,6 +638,241 @@
               "raw": "{\n  \"estado\": \"Pagada\"\n}"
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "Pasarela de pago",
+      "item": [
+        {
+          "name": "Medios de pago disponibles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos/config"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.be.success);",
+                  "pm.test('ofrece PayU y la pasarela simulada', () => {",
+                  "  const datos = pm.response.json();",
+                  "  pm.expect(datos.pasarelas).to.include('payu');",
+                  "  pm.expect(datos.pasarelas).to.include('simulada');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedido del carrito para pagar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ventas/pedido",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observaciones\": \"Pedido para probar la pasarela\",\n  \"items\": [\n    { \"tipo\": \"producto\", \"itemId\": 1, \"cantidad\": 1 }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el pedido queda registrado', () => pm.response.to.be.success);",
+                  "const datos = pm.response.json();",
+                  "pm.collectionVariables.set('ventaAPagar', datos.venta.id);",
+                  "pm.test('nace sin pagar', () => pm.expect(datos.venta.estado).to.eql('Registrada'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Empezar el pago en PayU",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos/payu",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"origen\": \"http://localhost:5173\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('devuelve el formulario firmado', () => pm.response.to.be.success);",
+                  "const datos = pm.response.json();",
+                  "pm.collectionVariables.set('referenciaPago', datos.referencia);",
+                  "pm.test('va firmado y en modo de pruebas', () => {",
+                  "  pm.expect(datos.campos.signature).to.be.a('string').and.not.empty;",
+                  "  pm.expect(datos.campos.test).to.eql('1');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tarjeta rechazada por fondos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos/simulado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"nombre\": \"Ana Restrepo\",\n  \"numero\": \"4000000200000000\",\n  \"vencimiento\": \"12/30\",\n  \"cvv\": \"123\",\n  \"cuotas\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el intento queda registrado', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('el banco lo rechaza', () => pm.expect(datos.pago.estado).to.eql('Rechazado'));",
+                  "pm.test('dice por que', () => pm.expect(datos.message).to.include('Fondos'));",
+                  "pm.test('la compra sigue sin pagar', () => pm.expect(datos.venta.estado).to.eql('Registrada'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagar con la pasarela simulada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos/simulado",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ventaId\": {{ventaAPagar}},\n  \"nombre\": \"APPROVED Ana Restrepo\",\n  \"numero\": \"4111111111111111\",\n  \"vencimiento\": \"12/30\",\n  \"cvv\": \"123\",\n  \"cuotas\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "const datos = pm.response.json();",
+                  "pm.test('el pago se aprueba', () => pm.expect(datos.pago.estado).to.eql('Aprobado'));",
+                  "pm.test('la compra queda pagada', () => pm.expect(datos.venta.estado).to.eql('Pagada'));",
+                  "pm.test('no devuelve el numero de la tarjeta', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historial de pagos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.be.success);",
+                  "pm.test('trae el pago aprobado', () => {",
+                  "  const datos = pm.response.json();",
+                  "  pm.expect(datos.pagos.length).to.be.above(0);",
+                  "  pm.expect(datos.resumen.aprobado).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagos filtrados por estado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/pagos?estado=Aprobado"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.be.success);",
+                  "pm.test('solo vienen aprobados', () => {",
+                  "  pm.response.json().pagos.forEach((pago) => pm.expect(pago.estado).to.eql('Aprobado'));",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

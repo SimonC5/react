@@ -43,5 +43,6 @@ INSERT INTO phpmyadmin.pma__table_coords (db_name, table_name, pdf_page_number, 
   ('simonsc', 'detalle_ventas',   @pagina, 1060,   40),
   ('simonsc', 'facturas',         @pagina, 1060,  420),
   ('simonsc', 'mensajes',         @pagina, 1060,  880),
-  -- Columna 5: el detalle de la factura.
-  ('simonsc', 'detalle_facturas', @pagina, 1420,  420);
+  -- Columna 5: el detalle de la factura y los pagos, que apuntan a ella.
+  ('simonsc', 'detalle_facturas', @pagina, 1420,  420),
+  ('simonsc', 'pagos',            @pagina, 1420,  800);

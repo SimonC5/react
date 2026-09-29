@@ -13,6 +13,7 @@ viven junto al router que los usa, para que cada módulo se lea completo:
 - Ventas y pedidos del carrito: ``ventas.py`` (``VentaItem``, ``VentaCreate``,
   ``VentaEstado``, ``PedidoItem``, ``PedidoCreate``).
 - Facturación: ``facturas.py`` (``FacturaCreate``, ``FacturaEstado``).
+- Pasarela de pago: ``pagos.py`` (``PagoTarjeta``, ``PagoPayU``, ``PagoResponse``).
 - PQR: ``pqr.py`` (``PqrCreate``, ``PqrUpdate``).
 - Chatbot con IA: ``chatbot.py`` (``MensajeEntrada``).
 - Recuperación de contraseña: ``recuperacion.py`` (``SolicitudRecuperacion``,

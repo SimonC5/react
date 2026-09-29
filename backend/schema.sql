@@ -140,6 +140,35 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
+-- Pasarela de pago: cada intento de cobro de una venta, salga bien o mal.
+-- De la tarjeta solo se guardan la franquicia y los cuatro últimos dígitos.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS pagos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  referencia VARCHAR(20) NOT NULL UNIQUE,
+  venta_id INT NOT NULL,
+  factura_id INT NULL,
+  cliente_id INT NULL,
+  cliente_nombre VARCHAR(160) NOT NULL DEFAULT '',
+  pasarela VARCHAR(20) NOT NULL DEFAULT 'simulada',
+  metodo VARCHAR(20) NOT NULL DEFAULT 'tarjeta',
+  franquicia VARCHAR(30) NOT NULL DEFAULT '',
+  ultimos_digitos VARCHAR(4) NOT NULL DEFAULT '',
+  cuotas INT NOT NULL DEFAULT 1,
+  monto DECIMAL(12,2) NOT NULL DEFAULT 0,
+  moneda VARCHAR(3) NOT NULL DEFAULT 'COP',
+  estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+  motivo VARCHAR(255) NOT NULL DEFAULT '',
+  transaccion VARCHAR(80) NOT NULL DEFAULT '',
+  fecha DATETIME NOT NULL,
+  INDEX idx_pagos_venta (venta_id),
+  CONSTRAINT fk_pagos_venta FOREIGN KEY (venta_id) REFERENCES ventas (id) ON DELETE CASCADE,
+  CONSTRAINT fk_pagos_factura FOREIGN KEY (factura_id) REFERENCES facturas (id) ON DELETE SET NULL,
+  CONSTRAINT fk_pagos_cliente FOREIGN KEY (cliente_id) REFERENCES usuarios (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
 -- Atención al cliente: PQR, chatbot y recuperación de contraseña.
 -- ---------------------------------------------------------------------------
 

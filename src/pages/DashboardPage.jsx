@@ -7,6 +7,7 @@ import AnalyticsModule from '../components/panel/AnalyticsModule';
 import EmailModule from '../components/panel/EmailModule';
 import SalesModule from '../components/panel/SalesModule';
 import InvoicesModule from '../components/panel/InvoicesModule';
+import PaymentsModule from '../components/panel/PaymentsModule';
 import ReportsModule from '../components/panel/ReportsModule';
 import PqrModule from '../components/panel/PqrModule';
 import PasswordToggle from '../components/PasswordToggle';
@@ -71,6 +72,16 @@ function IconInvoice() {
       <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
       <path d="M9 8h6" />
       <path d="M9 12h6" />
+    </svg>
+  );
+}
+
+function IconCard() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <path d="M2.5 9.5h19" />
+      <path d="M6 14.5h4" />
     </svg>
   );
 }
@@ -357,6 +368,7 @@ function DashboardPage({ role }) {
       ...(esAdministrador ? [{ clave: 'dashboard', label: 'Dashboard', icon: <IconChart /> }] : []),
       { clave: 'ventas', label: esCliente ? 'Mis compras' : 'Ventas', icon: <IconSale /> },
       { clave: 'facturas', label: esCliente ? 'Mis facturas' : 'Facturación', icon: <IconInvoice /> },
+      { clave: 'pagos', label: esCliente ? 'Mis pagos' : 'Pagos', icon: <IconCard /> },
       ...(gestionaComercial ? [{ clave: 'reportes', label: 'Reportes', icon: <IconReport /> }] : []),
       { clave: 'pqr', label: 'PQR', icon: <IconSupport /> },
       ...(esAdministrador ? [{ clave: 'usuarios', label: 'Usuarios', icon: <IconUsers /> }] : []),
@@ -565,6 +577,8 @@ function DashboardPage({ role }) {
               puedeGenerar={gestionaComercial}
             />
           )}
+
+          {seccion === 'pagos' && <PaymentsModule titulo={esCliente ? 'Mis pagos' : 'Pagos'} />}
 
           {seccion === 'reportes' && gestionaComercial && <ReportsModule />}
 

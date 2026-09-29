@@ -49,6 +49,22 @@ services:
       - key: EMAIL_FROM
         sync: false
 
+      # Pasarela de pago. Sin estas variables el sitio cobra con el entorno de
+      # PRUEBAS de PayU, cuyas credenciales son públicas: la tienda funciona
+      # nada más desplegarla y no mueve dinero. Para cobrar de verdad se
+      # escriben aquí las del comercio, que sync: false deja fuera del repo.
+      - key: PAYU_MERCHANT_ID
+        sync: false
+      - key: PAYU_ACCOUNT_ID
+        sync: false
+      - key: PAYU_API_KEY
+        sync: false
+      # La dirección pública a la que PayU manda la confirmación de servidor a
+      # servidor no se declara: Render ya pone RENDER_EXTERNAL_URL en cada
+      # servicio, y el backend la usa. Declararla aquí sería que el servicio se
+      # apuntara a sí mismo, que es justo lo que dio el nombre interno sin
+      # punto la otra vez.
+
   # Frontend Vite. Cualquier ruta se reenvía a index.html porque es una SPA.
   - type: web
     name: simonc-web

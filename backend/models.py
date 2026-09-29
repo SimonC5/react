@@ -54,6 +54,7 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     role_id: Mapped[int] = mapped_column(Integer, ForeignKey('roles.id'), nullable=False)
     role: Mapped['Role'] = relationship('Role', back_populates='users')
+    pagos: Mapped[list['Pago']] = relationship('Pago', back_populates='cliente')
 
 
 class Product(Base):
@@ -104,6 +105,7 @@ class Venta(Base):
     created_at: Mapped[Optional[str]] = mapped_column(String(20))
     detalle: Mapped[list['DetalleVenta']] = relationship('DetalleVenta', back_populates='venta', cascade='all, delete-orphan')
     factura: Mapped[Optional['Factura']] = relationship('Factura', back_populates='venta', uselist=False, cascade='all, delete-orphan')
+    pagos: Mapped[list['Pago']] = relationship('Pago', back_populates='venta', cascade='all, delete-orphan')
 
 
 class DetalleVenta(Base):
@@ -139,6 +141,7 @@ class Factura(Base):
     fecha: Mapped[str] = mapped_column(String(20), nullable=False)
     venta: Mapped['Venta'] = relationship('Venta', back_populates='factura')
     detalle: Mapped[list['DetalleFactura']] = relationship('DetalleFactura', back_populates='factura', cascade='all, delete-orphan')
+    pagos: Mapped[list['Pago']] = relationship('Pago', back_populates='factura')
 
 
 class DetalleFactura(Base):
@@ -154,6 +157,38 @@ class DetalleFactura(Base):
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     factura: Mapped['Factura'] = relationship('Factura', back_populates='detalle')
+
+
+class Pago(Base):
+    """Cada intento de cobro, salga bien o mal.
+
+    Se guarda también el rechazado, porque el historial de una compra tiene
+    que poder explicar por qué no está pagada. Del medio de pago solo quedan la
+    franquicia y los cuatro últimos dígitos: el número completo y el código de
+    seguridad no se escriben en ninguna parte.
+    """
+
+    __tablename__ = 'pagos'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    referencia: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    venta_id: Mapped[int] = mapped_column(Integer, ForeignKey('ventas.id', ondelete='CASCADE'), nullable=False)
+    factura_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('facturas.id', ondelete='SET NULL'))
+    cliente_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('usuarios.id', ondelete='SET NULL'))
+    cliente_nombre: Mapped[str] = mapped_column(String(160), nullable=False, default='')
+    pasarela: Mapped[str] = mapped_column(String(20), nullable=False, default='simulada')
+    metodo: Mapped[str] = mapped_column(String(20), nullable=False, default='tarjeta')
+    franquicia: Mapped[str] = mapped_column(String(30), nullable=False, default='')
+    ultimos_digitos: Mapped[str] = mapped_column(String(4), nullable=False, default='')
+    cuotas: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    monto: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    moneda: Mapped[str] = mapped_column(String(3), nullable=False, default='COP')
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default='Pendiente')
+    motivo: Mapped[str] = mapped_column(String(255), nullable=False, default='')
+    transaccion: Mapped[str] = mapped_column(String(80), nullable=False, default='')
+    fecha: Mapped[str] = mapped_column(String(20), nullable=False)
+    venta: Mapped['Venta'] = relationship('Venta', back_populates='pagos')
+    factura: Mapped[Optional['Factura']] = relationship('Factura', back_populates='pagos')
+    cliente: Mapped[Optional['User']] = relationship('User', back_populates='pagos')
 
 
 class Pqr(Base):

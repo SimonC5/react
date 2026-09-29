@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import CheckoutModal from './CheckoutModal';
 import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -24,22 +25,31 @@ function CartButton() {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [pedido, setPedido] = useState(null);
 
-  const confirmar = async () => {
+  // El pedido se registra primero y se cobra después, que es el orden de
+  // cualquier tienda: si el pago se cae o el comprador se arrepiende, la compra
+  // queda guardada y se puede pagar más tarde desde "Mis compras".
+  const irAPagar = async () => {
     setEnviando(true);
     setError('');
     try {
       const data = await ventasApi.pedido({
         items: items.map((item) => ({ tipo: item.tipo, itemId: item.id, cantidad: item.cantidad })),
       });
-      const factura = data.factura ? ` Tu factura ${data.factura.numero} ya está en "Mis facturas".` : '';
-      setMensaje(`${data.message} Número ${data.venta.numero}.${factura}`);
+      setPedido(data);
+      setAbierto(false);
       vaciar();
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setEnviando(false);
     }
+  };
+
+  const alPagar = (resultado) => {
+    const factura = pedido?.factura ? ` Tu factura ${pedido.factura.numero} quedó pagada.` : '';
+    setMensaje(`Pago aprobado, referencia ${resultado.pago.referencia}.${factura}`);
   };
 
   const abrir = () => {
@@ -131,15 +141,23 @@ function CartButton() {
               <button
                 type="button"
                 disabled={!user || enviando}
-                onClick={confirmar}
+                onClick={irAPagar}
                 className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"
               >
-                {enviando ? 'Enviando...' : 'Confirmar pedido'}
+                {enviando ? 'Registrando...' : 'Ir a pagar'}
               </button>
             </div>
           </>
         )}
       </Modal>
+
+      <CheckoutModal
+        abierto={Boolean(pedido)}
+        onClose={() => setPedido(null)}
+        venta={pedido?.venta}
+        factura={pedido?.factura}
+        onPagada={alPagar}
+      />
     </>
   );
 }

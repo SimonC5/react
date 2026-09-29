@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import CheckoutModal from '../CheckoutModal';
 import Modal from '../Modal';
 import { apiRequest, facturasApi, ventasApi } from '../../services/api';
 import { fechaCorta, formatoMoneda } from '../../utils/formato';
@@ -20,6 +21,7 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
   const [ventas, setVentas] = useState([]);
   const [resumen, setResumen] = useState({ cantidad: 0, total: 0 });
   const [seleccionada, setSeleccionada] = useState(null);
+  const [aPagar, setAPagar] = useState(null);
   const [registroAbierto, setRegistroAbierto] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
@@ -360,6 +362,11 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
                       <button type="button" className="text-cyan-300" onClick={() => verDetalle(venta)}>
                         Detalle
                       </button>
+                      {venta.estado === 'Registrada' && (
+                        <button type="button" className="text-amber-300" onClick={() => setAPagar(venta)}>
+                          Pagar
+                        </button>
+                      )}
                       {puedeRegistrar && (
                         <button type="button" className="text-emerald-300" onClick={() => generarFactura(venta)}>
                           Facturar
@@ -423,6 +430,18 @@ function SalesModule({ puedeRegistrar, titulo = 'Ventas' }) {
           </>
         )}
       </Modal>
+
+      {/* Una compra que quedó sin pagar se puede pagar después desde aquí: el
+          pedido ya existe, así que solo falta cobrarlo. */}
+      <CheckoutModal
+        abierto={Boolean(aPagar)}
+        onClose={() => {
+          setAPagar(null);
+          cargarVentas(filtros);
+        }}
+        venta={aPagar}
+        onPagada={() => setMensaje('El pago quedó registrado y la compra pasó a Pagada.')}
+      />
     </section>
   );
 }

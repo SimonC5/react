@@ -1,7 +1,8 @@
 """Esquema y utilidades del módulo comercial del quinto avance.
 
 Agrega a la base de datos las tablas ``ventas``, ``detalle_ventas``,
-``facturas``, ``detalle_facturas``, ``pqr``, ``conversaciones`` y ``mensajes``,
+``facturas``, ``detalle_facturas``, ``pagos``, ``pqr``, ``conversaciones`` y
+``mensajes``,
 junto con los ayudantes de numeración y cálculo que comparten los endpoints.
 """
 
@@ -11,6 +12,7 @@ from typing import Any, Optional
 
 ESTADOS_VENTA = ('Registrada', 'Pagada', 'Anulada')
 ESTADOS_FACTURA = ('Emitida', 'Pagada', 'Anulada')
+ESTADOS_PAGO = ('Pendiente', 'Aprobado', 'Rechazado', 'Error')
 ESTADOS_PQR = ('Pendiente', 'En proceso', 'Respondida', 'Cerrada')
 TIPOS_PQR = ('Petición', 'Queja', 'Reclamo', 'Sugerencia')
 TIPOS_ITEM = ('producto', 'servicio')
@@ -80,6 +82,29 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
     FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS pagos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    referencia TEXT NOT NULL UNIQUE,
+    venta_id INTEGER NOT NULL,
+    factura_id INTEGER,
+    cliente_id INTEGER,
+    cliente_nombre TEXT NOT NULL DEFAULT '',
+    pasarela TEXT NOT NULL DEFAULT 'simulada',
+    metodo TEXT NOT NULL DEFAULT 'tarjeta',
+    franquicia TEXT NOT NULL DEFAULT '',
+    ultimos_digitos TEXT NOT NULL DEFAULT '',
+    cuotas INTEGER NOT NULL DEFAULT 1,
+    monto REAL NOT NULL DEFAULT 0,
+    moneda TEXT NOT NULL DEFAULT 'COP',
+    estado TEXT NOT NULL DEFAULT 'Pendiente',
+    motivo TEXT NOT NULL DEFAULT '',
+    transaccion TEXT NOT NULL DEFAULT '',
+    fecha TEXT NOT NULL,
+    FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE,
+    FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE SET NULL,
+    FOREIGN KEY (cliente_id) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS pqr (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     radicado TEXT NOT NULL UNIQUE,
@@ -117,6 +142,7 @@ CREATE TABLE IF NOT EXISTS mensajes (
 CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha);
 CREATE INDEX IF NOT EXISTS idx_detalle_ventas_venta ON detalle_ventas(venta_id);
 CREATE INDEX IF NOT EXISTS idx_facturas_fecha ON facturas(fecha);
+CREATE INDEX IF NOT EXISTS idx_pagos_venta ON pagos(venta_id);
 CREATE INDEX IF NOT EXISTS idx_pqr_estado ON pqr(estado);
 CREATE INDEX IF NOT EXISTS idx_mensajes_conversacion ON mensajes(conversacion_id);
 """
@@ -182,6 +208,35 @@ def venta_row(row: sqlite3.Row) -> dict[str, Any]:
         'total': money(data.get('total')),
         'estado': data['estado'],
         'observaciones': data.get('observaciones', ''),
+        'fecha': data['fecha'],
+    }
+
+
+def pago_row(row: sqlite3.Row) -> dict[str, Any]:
+    """Un pago tal como lo lee el sitio.
+
+    Nunca sale de aquí el número de la tarjeta: en la tabla solo están los
+    cuatro últimos dígitos y la franquicia, que es lo que se imprime en un
+    recibo.
+    """
+    data = dict(row)
+    return {
+        'id': data['id'],
+        'referencia': data['referencia'],
+        'ventaId': data['venta_id'],
+        'facturaId': data.get('factura_id'),
+        'clienteId': data.get('cliente_id'),
+        'cliente': data.get('cliente_nombre', ''),
+        'pasarela': data.get('pasarela', ''),
+        'metodo': data.get('metodo', ''),
+        'franquicia': data.get('franquicia', ''),
+        'ultimosDigitos': data.get('ultimos_digitos', ''),
+        'cuotas': int(data.get('cuotas') or 1),
+        'monto': money(data.get('monto')),
+        'moneda': data.get('moneda', 'COP'),
+        'estado': data['estado'],
+        'motivo': data.get('motivo', ''),
+        'transaccion': data.get('transaccion', ''),
         'fecha': data['fecha'],
     }
 

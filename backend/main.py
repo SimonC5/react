@@ -37,17 +37,17 @@ try:
         DATA_DIR,
         DB_PATH,
         create_access_token,
-        dominio_publico,
         get_current_user,
         get_db_connection,
         hash_password,
+        origenes_permitidos,
         require_roles,
         verify_password,
     )
     from .catalogo_demo import RETIRADOS as CATALOGO_RETIRADO, SEED as SEED_CATALOGO
     from .comercial import init_comercial_db
     from .recuperacion import init_recuperacion_db
-    from . import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
+    from . import chatbot, dashboard, facturas, pagos, pqr, recuperacion, reportes, ventas
 except ImportError:
     from models import Base
     from schemas import (
@@ -76,36 +76,22 @@ except ImportError:
         DATA_DIR,
         DB_PATH,
         create_access_token,
-        dominio_publico,
         get_current_user,
         get_db_connection,
         hash_password,
+        origenes_permitidos,
         require_roles,
         verify_password,
     )
     from catalogo_demo import RETIRADOS as CATALOGO_RETIRADO, SEED as SEED_CATALOGO
     from comercial import init_comercial_db
     from recuperacion import init_recuperacion_db
-    import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
-
-DEFAULT_ORIGINS = [
-    'http://localhost:5173', 'http://127.0.0.1:5173',
-    'http://localhost:5174', 'http://127.0.0.1:5174',
-    'http://localhost:5175', 'http://127.0.0.1:5175',
-    'http://localhost:5176', 'http://127.0.0.1:5176',
-]
-
-
+    import chatbot, dashboard, facturas, pagos, pqr, recuperacion, reportes, ventas
 
 # En producción el dominio del Frontend se configura con FRONTEND_URL / CORS_ORIGINS.
-EXTRA_ORIGINS = list(dict.fromkeys(
-    origen
-    for origen in (
-        dominio_publico(valor)
-        for valor in f"{os.getenv('CORS_ORIGINS', '')},{os.getenv('FRONTEND_URL', '')}".split(',')
-    )
-    if origen
-))
+# La lista vive en core.py porque la comparte la pasarela de pago, que tiene que
+# saber a qué direcciones puede devolver el navegador después de cobrar.
+ORIGENES = origenes_permitidos()
 
 DESCRIPCION = """
 API de **SimonC Realidad Virtual**, la tienda de gafas y servicios de realidad
@@ -132,6 +118,7 @@ ETIQUETAS = [
     {'name': 'facturas', 'description': 'Emisión, consulta y descarga en PDF de las facturas.'},
     {'name': 'reportes', 'description': 'Reporte diario de ventas, exportable a PDF y a Excel.'},
     {'name': 'dashboard', 'description': 'Indicadores y gráficos del panel. Solo Administrador.'},
+    {'name': 'pagos', 'description': 'Pasarela de pago: PayU en modo de pruebas y una pasarela simulada.'},
     {'name': 'pqr', 'description': 'Peticiones, quejas y reclamos, y la respuesta al cliente.'},
     {'name': 'chatbot', 'description': 'Asistente con inteligencia artificial sobre el catálogo real.'},
     {'name': 'sistema', 'description': 'Estado del servicio.'},
@@ -147,14 +134,14 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=DEFAULT_ORIGINS + EXTRA_ORIGINS,
+    allow_origins=ORIGENES,
     allow_origin_regex=os.getenv('CORS_ORIGIN_REGEX') or None,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
 )
 
-for modulo in (ventas, facturas, reportes, dashboard, pqr, chatbot, recuperacion):
+for modulo in (ventas, facturas, pagos, reportes, dashboard, pqr, chatbot, recuperacion):
     app.include_router(modulo.router)
 
 # Los esquemas viven todos en schemas.py, con sus validaciones y sus ejemplos.

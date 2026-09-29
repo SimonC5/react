@@ -9,6 +9,7 @@ vi.mock('../services/api', () => ({
   },
   ventasApi: { listar: vi.fn(() => Promise.resolve({ ventas: [], resumen: { cantidad: 0, total: 0 } })) },
   pqrApi: { listar: vi.fn(() => Promise.resolve({ pqr: [] })) },
+  pagosApi: { listar: vi.fn(() => Promise.resolve({ pagos: [], resumen: { cantidad: 0, aprobado: 0 } })) },
   facturasApi: { listar: vi.fn(() => Promise.resolve({ facturas: [] })) },
   reportesApi: { diario: vi.fn(() => Promise.resolve({ reporte: { fecha: '2026-09-22', filas: [], totales: {} } })) },
   dashboardApi: {
@@ -74,5 +75,13 @@ describe('Qué ve cada rol en el panel', () => {
     expect(enElMenu(/^reportes$/i)).toBeNull();
     expect(enElMenu(/^mis compras$/i)).not.toBeNull();
     expect(enElMenu(/^mis facturas$/i)).not.toBeNull();
+    // La pasarela deja su rastro: el cliente puede ver sus propios pagos.
+    expect(enElMenu(/^mis pagos$/i)).not.toBeNull();
+  });
+
+  it('quien administra tiene la sección de pagos de la pasarela', async () => {
+    await abrirPanelComo('Administrador');
+
+    expect(enElMenu(/^pagos$/i)).not.toBeNull();
   });
 });
