@@ -16,6 +16,7 @@ from typing import Any, Optional
 import jwt
 import bcrypt
 from fastapi import Depends, HTTPException, Header, status
+from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
 def _sufijo_del_hosting() -> str:
@@ -290,10 +291,22 @@ def decode_token(token: str) -> dict[str, Any]:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token inválido o expirado.') from exc
 
 
-def get_current_user(authorization: Optional[str] = Header(None)):
-    if authorization is None or not authorization.startswith('Bearer '):
+# Declarar el esquema OAuth2 es lo que hace aparecer el botón **Authorize** en
+# /docs: desde ahí se inicia sesión y todas las pruebas de los endpoints
+# protegidos salen con el token puesto. ``auto_error=False`` deja que el mensaje
+# de "falta el token" lo demos nosotros, en español.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='api/auth/token', auto_error=False)
+
+
+def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    authorization: Optional[str] = Header(None),
+):
+    """Usuario dueño del token. Lanza 401 si no hay token o no es válido."""
+    if not token and authorization and authorization.startswith('Bearer '):
+        token = authorization.replace('Bearer ', '', 1)
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token requerido.')
-    token = authorization.replace('Bearer ', '', 1)
     payload = decode_token(token)
     user_email = payload.get('email')
     if not user_email:

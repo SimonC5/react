@@ -7,6 +7,7 @@ Se ejecutan sobre una base de datos temporal, así que no tocan
     python -m pytest backend
 """
 
+import inspect
 import json
 import socket
 import sys
@@ -576,7 +577,7 @@ def test_el_cliente_no_ve_el_catalogo_retirado(client, admin):
     creado = client.post('/api/products', headers=admin, json={
         'name': 'Visor descontinuado', 'description': 'Ya no se vende.', 'price': 100000,
     })
-    assert creado.status_code == 200, creado.text
+    assert creado.status_code == 201, creado.text
     producto_id = creado.json()['id']
     client.patch(f'/api/products/{producto_id}/status', headers=admin, json={'active': False})
 
@@ -639,7 +640,7 @@ def test_recuperacion_de_clave_genera_enlace_y_permite_cambiarla(client, capsys)
         'address': 'Calle siempre viva 123', 'phone': '3001112233',
         'email': correo, 'password': 'Clave1234', 'confirmPassword': 'Clave1234',
     })
-    assert alta.status_code == 200, alta.text
+    assert alta.status_code == 201, alta.text
 
     solicitud = client.post('/api/auth/recover', json={'email': correo})
     assert solicitud.status_code == 200
@@ -982,7 +983,7 @@ def test_el_enlace_de_recuperacion_sale_por_correo(client, monkeypatch, capsys):
         'address': 'Carrera 9 numero 8-70', 'phone': '3009998877',
         'email': direccion, 'password': 'Clave1234', 'confirmPassword': 'Clave1234',
     })
-    assert alta.status_code == 200, alta.text
+    assert alta.status_code == 201, alta.text
 
     recibidos = []
     puerto, hilo = _servidor_de_correo_falso(recibidos)
@@ -1089,7 +1090,7 @@ def test_el_correo_sale_por_la_api_web(client, monkeypatch, capsys):
         'address': 'Carrera 10 numero 11-12', 'phone': '3007776655',
         'email': direccion, 'password': 'Clave1234', 'confirmPassword': 'Clave1234',
     })
-    assert alta.status_code == 200, alta.text
+    assert alta.status_code == 201, alta.text
 
     recibidas = []
     servidor = _api_de_correo_falsa(recibidas)
@@ -1165,3 +1166,130 @@ def test_en_render_avisa_que_el_plan_gratuito_bloquea_smtp(client, admin, monkey
     monkeypatch.setenv('EMAIL_API_KEY', 'clave-de-prueba')
     monkeypatch.setenv('EMAIL_FROM', 'tienda@gmail.com')
     assert correo.advertencia() == ''
+
+
+# --- Criterios de la matriz de validación técnica ---------------------------
+
+def test_el_token_oauth2_sirve_para_el_boton_authorize(client):
+    """El flujo OAuth2 password es el que usa /docs para autenticarse."""
+    respuesta = client.post(
+        '/api/auth/token',
+        data={'username': 'admin@simonsc.com', 'password': 'Admin1234'},
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    datos = respuesta.json()
+    assert datos['token_type'] == 'bearer'
+
+    # Y ese token abre los endpoints protegidos, igual que el de /auth/login.
+    cabeceras = {'Authorization': f"Bearer {datos['access_token']}"}
+    assert client.get('/api/users', headers=cabeceras).status_code == 200
+
+    # Una credencial mala es 401, no un 422 de formato.
+    assert client.post('/api/auth/token', data={'username': 'admin@simonsc.com', 'password': 'mala'}).status_code == 401
+    assert client.post('/api/auth/token', data={'username': 'no-es-un-correo', 'password': 'x'}).status_code == 401
+
+
+def test_el_esquema_openapi_queda_documentado(client):
+    """Criterio de documentación: tags con descripción, ejemplos y seguridad."""
+    esquema = client.get('/openapi.json').json()
+
+    assert 'Authorize' in esquema['info']['description']
+    etiquetas = {tag['name']: tag.get('description', '') for tag in esquema.get('tags', [])}
+    assert {'auth', 'usuarios', 'catalogo', 'ventas', 'pqr'} <= set(etiquetas)
+    assert all(etiquetas.values()), 'toda etiqueta necesita su descripción'
+
+    # El botón Authorize solo aparece si hay un esquema de seguridad declarado.
+    seguridad = esquema['components'].get('securitySchemes', {})
+    assert any(valor.get('type') == 'oauth2' for valor in seguridad.values())
+
+    # Ejemplos precargados en el cuerpo de las peticiones.
+    assert esquema['components']['schemas']['UserCreateSchema']['examples']
+
+    # Resúmenes y esquema de salida declarado en las rutas del dominio.
+    listar = esquema['paths']['/api/products']['get']
+    assert listar['summary']
+    cuerpo = listar['responses']['200']['content']['application/json']['schema']
+    assert 'ProductsResponseSchema' in json.dumps(cuerpo)
+
+
+def test_consultar_un_solo_registro_por_su_id(client, admin):
+    """El CRUD incluye "consultar": productos, servicios y usuarios, uno a uno."""
+    creado = client.post('/api/products', headers=admin, json={
+        'name': 'Visor de prueba por id', 'description': 'Para la matriz.', 'price': 150000,
+    })
+    assert creado.status_code == 201, creado.text
+    producto = creado.json()
+
+    uno = client.get(f"/api/products/{producto['id']}", headers=admin)
+    assert uno.status_code == 200, uno.text
+    assert uno.json()['name'] == 'Visor de prueba por id'
+    assert 'password' not in uno.text
+
+    assert client.get('/api/products/999999', headers=admin).status_code == 404
+    assert client.get(f"/api/products/{producto['id']}").status_code == 401
+
+    servicios = client.get('/api/services', headers=admin).json()['services']
+    assert client.get(f"/api/services/{servicios[0]['id']}", headers=admin).status_code == 200
+
+    usuarios = client.get('/api/users', headers=admin).json()['users']
+    uno = client.get(f"/api/users/{usuarios[0]['id']}", headers=admin)
+    assert uno.status_code == 200, uno.text
+    # El esquema de salida recorta el hash de la contraseña aunque venga en la fila.
+    assert 'password' not in uno.text
+    assert client.get('/api/users/999999', headers=admin).status_code == 404
+
+
+def test_el_cliente_no_consulta_por_id_lo_retirado(client, admin):
+    """Lo que no está publicado tampoco se alcanza sabiendo el id."""
+    creado = client.post('/api/products', headers=admin, json={
+        'name': 'Visor retirado por id', 'description': 'Ya no se vende.', 'price': 100000,
+    })
+    producto_id = creado.json()['id']
+    assert client.patch(f'/api/products/{producto_id}/status', headers=admin, json={'active': False}).status_code == 200
+
+    cliente = _cuenta_de_cliente(client, 'ana.porid@correo.com', '8899001122')
+    assert client.get(f'/api/products/{producto_id}', headers=cliente).status_code == 404
+    # El administrador sí lo ve, porque es quien lo administra.
+    assert client.get(f'/api/products/{producto_id}', headers=admin).status_code == 200
+
+
+def test_la_salud_del_servicio_es_asincrona(client):
+    """Criterio de asincronía: hay endpoints escritos con async/await."""
+    assert inspect.iscoroutinefunction(main.health)
+    assert inspect.iscoroutinefunction(main.public_catalog)
+
+    datos = client.get('/api/health').json()
+    assert datos['status'] == 'ok'
+    assert datos['database'] in ('sqlite', 'mysql')
+
+
+def test_el_correo_de_recuperacion_se_manda_en_segundo_plano():
+    """Criterio de tareas en segundo plano: /recover no espera al proveedor."""
+    import recuperacion as modulo
+
+    parametros = inspect.signature(modulo.solicitar_recuperacion).parameters
+    assert any(
+        getattr(parametro.annotation, '__name__', '') == 'BackgroundTasks'
+        for parametro in parametros.values()
+    ), 'solicitar_recuperacion debe recibir BackgroundTasks'
+
+
+def test_los_modelos_orm_se_configuran_y_estan_relacionados():
+    """Criterio de persistencia: modelos SQLAlchemy 2.0 con relaciones válidas."""
+    from sqlalchemy.orm import configure_mappers
+
+    import models
+
+    # Falla si un back_populates no tiene su pareja al otro lado.
+    configure_mappers()
+
+    assert {'usuarios', 'ventas', 'detalle_ventas', 'facturas', 'pqr'} <= set(models.Base.metadata.tables)
+
+    # Estilo tipado de 2.0: las columnas se anotan con Mapped[...].
+    assert 'id' in models.Venta.__annotations__
+    assert 'Mapped' in str(models.Venta.__annotations__['id'])
+
+    # Dos entidades relacionadas, navegables en los dos sentidos.
+    assert models.Venta.detalle.property.mapper.class_ is models.DetalleVenta
+    assert models.DetalleVenta.venta.property.mapper.class_ is models.Venta
+    assert models.Mensaje.conversacion.property.mapper.class_ is models.Conversacion

@@ -18,6 +18,15 @@ gestión comercial, reportes, Dashboards, PQR y un chatbot con Inteligencia Arti
 Usuarios de prueba: `admin@simonsc.com` / `Admin1234` y `empleado@simonsc.com` / `Empleado1234`.
 Cualquier persona puede registrarse desde el sitio y queda con el rol Cliente.
 
+En `/docs`, el botón **Authorize** inicia sesión con esas mismas cuentas (el correo va en el
+campo `username`) y deja todas las peticiones de la página firmadas con el token.
+
+## Documentación
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — cómo está organizado el proyecto y su mapeo MVC.
+- [`docs/comparativa-fastapi-django-rest.md`](docs/comparativa-fastapi-django-rest.md) — por qué
+  FastAPI y no Django REST Framework, con el código del proyecto como ejemplo.
+
 ## Variables de entorno
 
 Raíz (`.env`, a partir de `.env.example`):

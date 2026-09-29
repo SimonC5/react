@@ -3,6 +3,10 @@
 Documento de referencia de cómo está organizado el proyecto y cómo se mapea
 sobre el patrón MVC. Refleja la estructura real del repositorio.
 
+La comparación entre FastAPI y Django REST Framework, aplicada a las decisiones
+de este proyecto, está en
+[`docs/comparativa-fastapi-django-rest.md`](docs/comparativa-fastapi-django-rest.md).
+
 ## Estructura
 
 ```text

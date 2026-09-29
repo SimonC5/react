@@ -1,15 +1,35 @@
+import asyncio
 import os
 import re
 import sqlite3
 from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ValidationError
 try:
     from .models import Base
-    from .schemas import UserCreateSchema
+    from .schemas import (
+        CatalogResponseSchema,
+        HealthResponseSchema,
+        MessageResponseSchema,
+        ProductsResponseSchema,
+        RegistrationResponseSchema,
+        ResourceCreateSchema,
+        ResourceResponseSchema,
+        ResourceStatusSchema,
+        ResourceUpdateSchema,
+        ServicesResponseSchema,
+        SessionResponseSchema,
+        TokenResponseSchema,
+        UserCreateSchema,
+        UserLoginSchema,
+        UserResponseSchema,
+        UsersResponseSchema,
+        UserUpdateSchema,
+    )
     from .database import initialize_models
     from .core import (
         aplicar_schema_sql,
@@ -30,7 +50,25 @@ try:
     from . import chatbot, dashboard, facturas, pqr, recuperacion, reportes, ventas
 except ImportError:
     from models import Base
-    from schemas import UserCreateSchema
+    from schemas import (
+        CatalogResponseSchema,
+        HealthResponseSchema,
+        MessageResponseSchema,
+        ProductsResponseSchema,
+        RegistrationResponseSchema,
+        ResourceCreateSchema,
+        ResourceResponseSchema,
+        ResourceStatusSchema,
+        ResourceUpdateSchema,
+        ServicesResponseSchema,
+        SessionResponseSchema,
+        TokenResponseSchema,
+        UserCreateSchema,
+        UserLoginSchema,
+        UserResponseSchema,
+        UsersResponseSchema,
+        UserUpdateSchema,
+    )
     from database import initialize_models
     from core import (
         aplicar_schema_sql,
@@ -69,7 +107,44 @@ EXTRA_ORIGINS = list(dict.fromkeys(
     if origen
 ))
 
-app = FastAPI(title='SimonC API', version='2.0.0')
+DESCRIPCION = """
+API de **SimonC Realidad Virtual**, la tienda de gafas y servicios de realidad
+virtual. Está construida con FastAPI y cubre catálogo, ventas, facturación,
+PQR, reportes y un chatbot con inteligencia artificial.
+
+### Cómo probar los endpoints protegidos
+
+1. Pulsa el botón **Authorize** de arriba a la derecha.
+2. Entra con una de las cuentas de ejemplo:
+   `admin@simonsc.com` / `Admin1234` (Administrador),
+   `empleado@simonsc.com` / `Empleado1234` (Empleado).
+3. Todas las peticiones de esta página saldrán ya con el token puesto.
+
+La sesión es un **JWT**. Los endpoints indican con un candado si piden sesión,
+y varios además exigen un rol concreto: si el rol no alcanza, responden `403`.
+"""
+
+ETIQUETAS = [
+    {'name': 'auth', 'description': 'Registro, inicio de sesión, recuperación de contraseña y estado del correo.'},
+    {'name': 'usuarios', 'description': 'Administración de las cuentas y sus roles. Solo Administrador.'},
+    {'name': 'catalogo', 'description': 'Productos y servicios. El catálogo público no necesita sesión.'},
+    {'name': 'ventas', 'description': 'Ventas del panel y pedidos del carrito de la tienda.'},
+    {'name': 'facturas', 'description': 'Emisión, consulta y descarga en PDF de las facturas.'},
+    {'name': 'reportes', 'description': 'Reporte diario de ventas, exportable a PDF y a Excel.'},
+    {'name': 'dashboard', 'description': 'Indicadores y gráficos del panel. Solo Administrador.'},
+    {'name': 'pqr', 'description': 'Peticiones, quejas y reclamos, y la respuesta al cliente.'},
+    {'name': 'chatbot', 'description': 'Asistente con inteligencia artificial sobre el catálogo real.'},
+    {'name': 'sistema', 'description': 'Estado del servicio.'},
+]
+
+app = FastAPI(
+    title='SimonC Realidad Virtual — API',
+    version='2.0.0',
+    description=DESCRIPCION,
+    openapi_tags=ETIQUETAS,
+    contact={'name': 'Simon Cardona Hincapie', 'url': 'https://github.com/SimonC5/react'},
+    license_info={'name': 'Proyecto formativo SENA — ADSO ficha 3406211'},
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=DEFAULT_ORIGINS + EXTRA_ORIGINS,
@@ -82,25 +157,12 @@ app.add_middleware(
 for modulo in (ventas, facturas, reportes, dashboard, pqr, chatbot, recuperacion):
     app.include_router(modulo.router)
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    lastName: Optional[str] = None
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    role: Optional[str] = 'Cliente'
-
-class ResourceCreate(BaseModel):
-    name: str
-    description: str = ''
-    price: float = 0
-
-class ResourceStatus(BaseModel):
-    active: bool
+# Los esquemas viven todos en schemas.py, con sus validaciones y sus ejemplos.
+# Estos alias mantienen los nombres cortos que ya usaba el resto del archivo.
+UserLogin = UserLoginSchema
+UserUpdate = UserUpdateSchema
+ResourceCreate = ResourceCreateSchema
+ResourceStatus = ResourceStatusSchema
 
 def init_db():
     if not usa_mysql():
@@ -236,6 +298,18 @@ def init_db():
         conn.close()
 
 
+def fila_del_catalogo(tabla: str, registro_id: int) -> dict[str, Any]:
+    """Un producto o un servicio por su id, o 404 si no existe."""
+    conn = get_db_connection()
+    try:
+        fila = conn.execute(f'SELECT * FROM {tabla} WHERE id = ?', (registro_id,)).fetchone()
+    finally:
+        conn.close()
+    if fila is None:
+        raise HTTPException(status_code=404, detail='Registro no encontrado.')
+    return dict(fila)
+
+
 def normalize_email(value: str) -> str:
     return value.strip().lower()
 
@@ -245,7 +319,7 @@ def public_user_row(user: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     return {
         'id': data.get('id'),
         'name': data.get('name'),
-        'lastName': data.get('last_name'),
+        'lastName': data.get('last_name') or '',
         'email': data.get('email'),
         'role': data.get('role'),
         'active': bool(data.get('active', 1)),
@@ -257,13 +331,32 @@ def startup_event():
     init_db()
 
 
-@app.get('/api/health')
-def health():
-    return {'status': 'ok', 'database': 'sqlite'}
+@app.get(
+    '/api/health',
+    tags=['sistema'],
+    summary='Estado del servicio',
+    response_model=HealthResponseSchema,
+)
+async def health():
+    """Comprueba que la API responde y con qué motor de base de datos corre.
+
+    Es asíncrono a propósito: no toca la base de datos, así que atiende sin
+    ocupar un hilo. Es el endpoint que consulta Render para saber si el
+    servicio sigue vivo.
+    """
+    return {'status': 'ok', 'database': 'mysql' if usa_mysql() else 'sqlite'}
 
 
-@app.post('/api/auth/register')
+@app.post(
+    '/api/auth/register',
+    tags=['auth'],
+    summary='Crear una cuenta de cliente',
+    response_model=RegistrationResponseSchema,
+    status_code=201,
+    responses={409: {'description': 'El correo o el documento ya están registrados.'}},
+)
 def register(payload: UserCreateSchema):
+    """Registra un cliente nuevo. La contraseña se guarda como hash, nunca en claro."""
     if not payload.name or not payload.lastName or not payload.address or not payload.documentNumber:
         raise HTTPException(status_code=400, detail='Revisa los datos del usuario.')
     if len(payload.password) < 8 or not any(ch.isalpha() for ch in payload.password) or not any(ch.isdigit() for ch in payload.password):
@@ -298,13 +391,20 @@ def register(payload: UserCreateSchema):
         conn.close()
 
 
-@app.post('/api/usuarios/registro')
+@app.post('/api/usuarios/registro', include_in_schema=False, status_code=201)
 def register_user_alias(payload: UserCreateSchema):
     return register(payload)
 
 
-@app.post('/api/auth/login')
+@app.post(
+    '/api/auth/login',
+    tags=['auth'],
+    summary='Iniciar sesión y obtener el token',
+    response_model=SessionResponseSchema,
+    responses={401: {'description': 'Credenciales inválidas o usuario inactivo.'}},
+)
 def login(payload: UserLogin):
+    """Devuelve el JWT y el usuario. Es el que usa el frontend de React."""
     email = normalize_email(str(payload.email))
     conn = get_db_connection()
     try:
@@ -327,13 +427,50 @@ def login(payload: UserLogin):
     return {'token': token, 'user': public_user_row(user)}
 
 
-@app.get('/api/auth/me', dependencies=[Depends(get_current_user)])
+@app.get(
+    '/api/auth/me',
+    tags=['auth'],
+    summary='Ver la sesión actual',
+    dependencies=[Depends(get_current_user)],
+)
 def me(current_user: dict[str, Any] = Depends(get_current_user)):
+    """Quién es el dueño del token, para que el frontend recupere la sesión."""
     return {'user': public_user_row(current_user)}
 
 
-@app.get('/api/users', dependencies=[Depends(require_roles('Administrador'))])
+@app.post(
+    '/api/auth/token',
+    tags=['auth'],
+    summary='Iniciar sesión desde /docs (OAuth2 password)',
+    response_model=TokenResponseSchema,
+    responses={401: {'description': 'Credenciales inválidas o usuario inactivo.'}},
+)
+def token_oauth2(form: OAuth2PasswordRequestForm = Depends()):
+    """Mismo inicio de sesión, en el formato del flujo *OAuth2 password*.
+
+    Es el que usa el botón **Authorize** de esta página: el correo va en el
+    campo `username`. Devuelve el mismo JWT que `/api/auth/login`, pero con los
+    nombres `access_token` y `token_type` que espera el estándar.
+    """
+    try:
+        credenciales = UserLoginSchema(email=form.username, password=form.password)
+    except ValidationError as exc:
+        # Si `username` no es un correo, es una credencial mala, no un error
+        # del formato de la petición: corresponde 401, igual que una clave mala.
+        raise HTTPException(status_code=401, detail='Credenciales inválidas o usuario inactivo.') from exc
+    sesion = login(credenciales)
+    return {'access_token': sesion['token'], 'token_type': 'bearer'}
+
+
+@app.get(
+    '/api/users',
+    tags=['usuarios'],
+    summary='Listar usuarios',
+    response_model=UsersResponseSchema,
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def list_users(current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
+    """Todas las cuentas con su rol. Nunca devuelve la contraseña."""
     conn = get_db_connection()
     try:
         rows = conn.execute(
@@ -350,8 +487,44 @@ def list_users(current_user: dict[str, Any] = Depends(require_roles('Administrad
         conn.close()
 
 
-@app.post('/api/users', dependencies=[Depends(require_roles('Administrador'))])
+@app.get(
+    '/api/users/{user_id}',
+    tags=['usuarios'],
+    summary='Consultar un usuario',
+    response_model=UserResponseSchema,
+    responses={404: {'description': 'No existe ninguna cuenta con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
+def get_user(user_id: int, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
+    """Una sola cuenta por su id."""
+    conn = get_db_connection()
+    try:
+        fila = conn.execute(
+            '''
+            SELECT u.id, u.name, u.last_name AS lastName, u.document_type AS documentType,
+                   u.document_number AS documentNumber, u.address, u.phone, u.email, u.active, r.name AS role
+            FROM usuarios u
+            JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ?
+            ''',
+            (user_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if fila is None:
+        raise HTTPException(status_code=404, detail='Usuario no encontrado.')
+    return dict(fila)
+
+
+@app.post(
+    '/api/users',
+    tags=['usuarios'],
+    summary='Crear una cuenta',
+    status_code=201,
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def create_user(payload: dict[str, Any], current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
+    """Crea una cuenta con el rol que indique el Administrador."""
     role_name = payload.get('role', 'Cliente')
     if not payload.get('name') or not payload.get('lastName') or not payload.get('documentNumber') or not payload.get('address') or not payload.get('password'):
         raise HTTPException(status_code=400, detail='Datos de usuario incompletos o inválidos.')
@@ -390,7 +563,13 @@ def create_user(payload: dict[str, Any], current_user: dict[str, Any] = Depends(
         conn.close()
 
 
-@app.put('/api/users/{user_id}', dependencies=[Depends(require_roles('Administrador'))])
+@app.put(
+    '/api/users/{user_id}',
+    tags=['usuarios'],
+    summary='Actualizar una cuenta',
+    responses={404: {'description': 'No existe ninguna cuenta con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def update_user(user_id: int, payload: UserUpdate, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
     if not payload.name or not payload.lastName or not payload.email:
         raise HTTPException(status_code=400, detail='Datos de usuario inválidos.')
@@ -420,7 +599,14 @@ def update_user(user_id: int, payload: UserUpdate, current_user: dict[str, Any] 
         conn.close()
 
 
-@app.patch('/api/users/{user_id}/status', dependencies=[Depends(require_roles('Administrador'))])
+@app.patch(
+    '/api/users/{user_id}/status',
+    tags=['usuarios'],
+    summary='Activar o desactivar una cuenta',
+    response_model=MessageResponseSchema,
+    responses={404: {'description': 'No existe ninguna cuenta con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def patch_user_status(user_id: int, payload: ResourceStatus, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
     conn = get_db_connection()
     try:
@@ -433,7 +619,14 @@ def patch_user_status(user_id: int, payload: ResourceStatus, current_user: dict[
         conn.close()
 
 
-@app.delete('/api/users/{user_id}', dependencies=[Depends(require_roles('Administrador'))])
+@app.delete(
+    '/api/users/{user_id}',
+    tags=['usuarios'],
+    summary='Eliminar una cuenta',
+    response_model=MessageResponseSchema,
+    responses={404: {'description': 'No existe ninguna cuenta con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def delete_user(user_id: int, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
     conn = get_db_connection()
     try:
@@ -458,14 +651,31 @@ def get_resource_list(table: str):
     return handler
 
 
-@app.get('/api/catalogo')
-def public_catalog():
+@app.get(
+    '/api/catalogo',
+    tags=['catalogo'],
+    summary='Catálogo público de la tienda',
+    response_model=CatalogResponseSchema,
+)
+async def public_catalog():
     """Catálogo de la web pública: solo lo publicado, sin necesidad de sesión.
 
     Es lo que alimenta las páginas de Productos y Servicios y el carrito, así
     que devuelve el id y el precio reales para que el pedido no dependa de
     datos escritos en el navegador.
+
+    Es el endpoint más visitado (lo pide cualquiera que entre a la tienda, sin
+    haber iniciado sesión), así que está escrito con ``async``. El controlador
+    de la base de datos es bloqueante, y por eso la consulta se manda a un hilo
+    aparte con ``asyncio.to_thread``: mientras responde la base de datos, el
+    bucle de eventos queda libre para atender a los demás visitantes en vez de
+    quedarse esperando.
     """
+    return await asyncio.to_thread(_leer_catalogo_publico)
+
+
+def _leer_catalogo_publico() -> dict[str, Any]:
+    """La parte bloqueante de `public_catalog`, para correrla fuera del bucle."""
     conn = get_db_connection()
     try:
         productos = conn.execute(
@@ -487,8 +697,14 @@ def _solo_publicado(current_user: dict[str, Any]) -> str:
     return ' WHERE active = 1' if current_user.get('role') == 'Cliente' else ''
 
 
-@app.get('/api/products')
+@app.get(
+    '/api/products',
+    tags=['catalogo'],
+    summary='Listar products',
+    response_model=ProductsResponseSchema,
+)
 def list_products(current_user: dict[str, Any] = Depends(get_current_user)):
+    """Catálogo completo para el panel. El cliente solo ve lo publicado."""
     conn = get_db_connection()
     try:
         rows = conn.execute(f'SELECT * FROM productos{_solo_publicado(current_user)} ORDER BY id DESC').fetchall()
@@ -497,8 +713,31 @@ def list_products(current_user: dict[str, Any] = Depends(get_current_user)):
         conn.close()
 
 
-@app.post('/api/products', dependencies=[Depends(require_roles('Administrador'))])
+@app.get(
+    '/api/products/{product_id}',
+    tags=['catalogo'],
+    summary='Consultar un producto',
+    response_model=ResourceResponseSchema,
+    responses={404: {'description': 'No existe ningún producto con ese id.'}},
+)
+def get_product(product_id: int, current_user: dict[str, Any] = Depends(get_current_user)):
+    """Un solo producto por su id. Al cliente solo se le muestra si está publicado."""
+    registro = fila_del_catalogo('productos', product_id)
+    if not registro.get('active') and (current_user.get('role') or '') == 'Cliente':
+        raise HTTPException(status_code=404, detail='Registro no encontrado.')
+    return registro
+
+
+@app.post(
+    '/api/products',
+    tags=['catalogo'],
+    summary='Crear un producto',
+    response_model=ResourceResponseSchema,
+    status_code=201,
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def create_product(payload: ResourceCreate, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
+    """Da de alta un producto y devuelve el registro recién creado."""
     if not payload.name or payload.price < 0:
         raise HTTPException(status_code=400, detail='Nombre y precio válido son obligatorios.')
     conn = get_db_connection()
@@ -508,13 +747,22 @@ def create_product(payload: ResourceCreate, current_user: dict[str, Any] = Depen
             (payload.name.strip(), payload.description.strip(), float(payload.price)),
         )
         conn.commit()
-        return {'id': cursor.lastrowid}
+        nuevo_id = cursor.lastrowid
     finally:
         conn.close()
+    return fila_del_catalogo('productos', nuevo_id)
 
 
-@app.put('/api/products/{product_id}', dependencies=[Depends(require_roles('Administrador'))])
+@app.put(
+    '/api/products/{product_id}',
+    tags=['catalogo'],
+    summary='Actualizar un producto',
+    response_model=ResourceResponseSchema,
+    responses={404: {'description': 'No existe ningún producto con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def update_product(product_id: int, payload: ResourceCreate, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
+    """Cambia nombre, descripción y precio, y devuelve cómo quedó."""
     if not payload.name or payload.price < 0:
         raise HTTPException(status_code=400, detail='Nombre y precio válido son obligatorios.')
     conn = get_db_connection()
@@ -526,12 +774,19 @@ def update_product(product_id: int, payload: ResourceCreate, current_user: dict[
         conn.commit()
         if updated.rowcount == 0:
             raise HTTPException(status_code=404, detail='Registro no encontrado.')
-        return {'message': 'Registro actualizado.'}
     finally:
         conn.close()
+    return fila_del_catalogo('productos', product_id)
 
 
-@app.patch('/api/products/{product_id}/status', dependencies=[Depends(require_roles('Administrador'))])
+@app.patch(
+    '/api/products/{product_id}/status',
+    tags=['catalogo'],
+    summary='Publicar o retirar un producto',
+    response_model=MessageResponseSchema,
+    responses={404: {'description': 'No existe ningún producto con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def change_product_status(product_id: int, payload: ResourceStatus, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
     conn = get_db_connection()
     try:
@@ -544,7 +799,14 @@ def change_product_status(product_id: int, payload: ResourceStatus, current_user
         conn.close()
 
 
-@app.delete('/api/products/{product_id}', dependencies=[Depends(require_roles('Administrador'))])
+@app.delete(
+    '/api/products/{product_id}',
+    tags=['catalogo'],
+    summary='Eliminar un producto',
+    response_model=MessageResponseSchema,
+    responses={404: {'description': 'No existe ningún producto con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador'))],
+)
 def delete_product(product_id: int, current_user: dict[str, Any] = Depends(require_roles('Administrador'))):
     conn = get_db_connection()
     try:
@@ -557,8 +819,14 @@ def delete_product(product_id: int, current_user: dict[str, Any] = Depends(requi
         conn.close()
 
 
-@app.get('/api/services')
+@app.get(
+    '/api/services',
+    tags=['catalogo'],
+    summary='Listar services',
+    response_model=ServicesResponseSchema,
+)
 def list_services(current_user: dict[str, Any] = Depends(get_current_user)):
+    """Catálogo completo para el panel. El cliente solo ve lo publicado."""
     conn = get_db_connection()
     try:
         rows = conn.execute(f'SELECT * FROM servicios{_solo_publicado(current_user)} ORDER BY id DESC').fetchall()
@@ -567,8 +835,31 @@ def list_services(current_user: dict[str, Any] = Depends(get_current_user)):
         conn.close()
 
 
-@app.post('/api/services', dependencies=[Depends(require_roles('Administrador', 'Empleado'))])
+@app.get(
+    '/api/services/{service_id}',
+    tags=['catalogo'],
+    summary='Consultar un servicio',
+    response_model=ResourceResponseSchema,
+    responses={404: {'description': 'No existe ningún servicio con ese id.'}},
+)
+def get_service(service_id: int, current_user: dict[str, Any] = Depends(get_current_user)):
+    """Un solo servicio por su id. Al cliente solo se le muestra si está publicado."""
+    registro = fila_del_catalogo('servicios', service_id)
+    if not registro.get('active') and (current_user.get('role') or '') == 'Cliente':
+        raise HTTPException(status_code=404, detail='Registro no encontrado.')
+    return registro
+
+
+@app.post(
+    '/api/services',
+    tags=['catalogo'],
+    summary='Crear un servicio',
+    response_model=ResourceResponseSchema,
+    status_code=201,
+    dependencies=[Depends(require_roles('Administrador', 'Empleado'))],
+)
 def create_service(payload: ResourceCreate, current_user: dict[str, Any] = Depends(require_roles('Administrador', 'Empleado'))):
+    """Da de alta un servicio y devuelve el registro recién creado."""
     if not payload.name or payload.price < 0:
         raise HTTPException(status_code=400, detail='Nombre y precio válido son obligatorios.')
     conn = get_db_connection()
@@ -578,13 +869,22 @@ def create_service(payload: ResourceCreate, current_user: dict[str, Any] = Depen
             (payload.name.strip(), payload.description.strip(), float(payload.price)),
         )
         conn.commit()
-        return {'id': cursor.lastrowid}
+        nuevo_id = cursor.lastrowid
     finally:
         conn.close()
+    return fila_del_catalogo('servicios', nuevo_id)
 
 
-@app.put('/api/services/{service_id}', dependencies=[Depends(require_roles('Administrador', 'Empleado'))])
+@app.put(
+    '/api/services/{service_id}',
+    tags=['catalogo'],
+    summary='Actualizar un servicio',
+    response_model=ResourceResponseSchema,
+    responses={404: {'description': 'No existe ningún servicio con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador', 'Empleado'))],
+)
 def update_service(service_id: int, payload: ResourceCreate, current_user: dict[str, Any] = Depends(require_roles('Administrador', 'Empleado'))):
+    """Cambia nombre, descripción y precio, y devuelve cómo quedó."""
     if not payload.name or payload.price < 0:
         raise HTTPException(status_code=400, detail='Nombre y precio válido son obligatorios.')
     conn = get_db_connection()
@@ -596,12 +896,19 @@ def update_service(service_id: int, payload: ResourceCreate, current_user: dict[
         conn.commit()
         if updated.rowcount == 0:
             raise HTTPException(status_code=404, detail='Registro no encontrado.')
-        return {'message': 'Registro actualizado.'}
     finally:
         conn.close()
+    return fila_del_catalogo('servicios', service_id)
 
 
-@app.patch('/api/services/{service_id}/status', dependencies=[Depends(require_roles('Administrador', 'Empleado'))])
+@app.patch(
+    '/api/services/{service_id}/status',
+    tags=['catalogo'],
+    summary='Publicar o retirar un servicio',
+    response_model=MessageResponseSchema,
+    responses={404: {'description': 'No existe ningún servicio con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador', 'Empleado'))],
+)
 def change_service_status(service_id: int, payload: ResourceStatus, current_user: dict[str, Any] = Depends(require_roles('Administrador', 'Empleado'))):
     conn = get_db_connection()
     try:
@@ -614,7 +921,14 @@ def change_service_status(service_id: int, payload: ResourceStatus, current_user
         conn.close()
 
 
-@app.delete('/api/services/{service_id}', dependencies=[Depends(require_roles('Administrador', 'Empleado'))])
+@app.delete(
+    '/api/services/{service_id}',
+    tags=['catalogo'],
+    summary='Eliminar un servicio',
+    response_model=MessageResponseSchema,
+    responses={404: {'description': 'No existe ningún servicio con ese id.'}},
+    dependencies=[Depends(require_roles('Administrador', 'Empleado'))],
+)
 def delete_service(service_id: int, current_user: dict[str, Any] = Depends(require_roles('Administrador', 'Empleado'))):
     conn = get_db_connection()
     try:

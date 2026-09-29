@@ -16,7 +16,7 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
 try:
@@ -130,9 +130,32 @@ def _enviar_enlace(destinatario: str, enlace: str):
     )
 
 
-@router.post('/recover')
-def solicitar_recuperacion(payload: SolicitudRecuperacion):
-    """Genera el enlace de recuperación. Responde igual exista o no el correo."""
+def _mandar_y_registrar(email: str, enlace: str) -> None:
+    """Envía el enlace y deja constancia en la consola si no salió.
+
+    Corre en segundo plano (``BackgroundTasks``): hablar con el proveedor de
+    correo puede tardar varios segundos, y la persona no tiene por qué esperar
+    a que termine para ver la pantalla de "revisa tu correo".
+    """
+    resultado = _enviar_enlace(email, enlace)
+    if not resultado.enviado:
+        # Sin correo configurado (o si falla) el enlace se imprime aquí para
+        # poder probar el flujo, junto con el motivo del fallo.
+        print(f'[recuperacion] No salió el correo para {email}: {resultado.motivo}')
+        print(f'[recuperacion] Enlace para {email}: {enlace}')
+
+
+@router.post(
+    '/recover',
+    summary='Pedir el enlace para crear una contraseña nueva',
+    responses={200: {'description': 'Siempre responde lo mismo, exista o no el correo.'}},
+)
+def solicitar_recuperacion(payload: SolicitudRecuperacion, tareas: BackgroundTasks):
+    """Genera el enlace de recuperación. Responde igual exista o no el correo.
+
+    El correo se manda en segundo plano, así que la respuesta sale de inmediato
+    y el tiempo que tarde el proveedor no se le nota a quien está esperando.
+    """
     email = str(payload.email).strip().lower()
     conn = get_db_connection()
     try:
@@ -161,18 +184,18 @@ def solicitar_recuperacion(payload: SolicitudRecuperacion):
         conn.close()
 
     enlace = f'{_frontend_url()}/reset-password?token={token}'
-    resultado = _enviar_enlace(email, enlace)
-    if not resultado.enviado:
-        # Sin correo configurado (o si falla) el enlace se imprime aquí para
-        # poder probar el flujo, junto con el motivo del fallo.
-        print(f'[recuperacion] No salió el correo para {email}: {resultado.motivo}')
-        print(f'[recuperacion] Enlace para {email}: {enlace}')
+    tareas.add_task(_mandar_y_registrar, email, enlace)
 
     return {'message': MENSAJE_GENERICO, 'correoConfigurado': hay_correo_configurado()}
 
 
-@router.post('/reset-password')
+@router.post(
+    '/reset-password',
+    summary='Crear la contraseña nueva con el enlace recibido',
+    responses={400: {'description': 'El enlace no es válido, ya se usó o venció.'}},
+)
 def cambiar_clave(payload: CambioDeClave):
+    """Cambia la contraseña si el token del enlace sigue siendo válido."""
     clave = payload.password
     if len(clave) < 8 or not any(c.isalpha() for c in clave) or not any(c.isdigit() for c in clave):
         raise HTTPException(status_code=400, detail='La contraseña debe tener al menos 8 caracteres, letras y números.')
