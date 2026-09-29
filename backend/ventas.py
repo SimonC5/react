@@ -171,7 +171,14 @@ def _registrar_venta(payload: VentaCreate, current_user: dict[str, Any]) -> dict
             subtotal += base
             descuento_total += descuento
             impuesto_total += impuesto
-            lineas.append((tipo, item.itemId, nombre, item.cantidad, precio, descuento, impuesto, base, money(base + impuesto)))
+            # Además del tipo y el id, la línea guarda la clave foránea de la
+            # tabla que le corresponde: es la que enlaza la venta con el
+            # catálogo en el diagrama de la base de datos.
+            catalogado = (catalogo or {}).get('id')
+            producto_id = catalogado if tipo == 'producto' else None
+            servicio_id = catalogado if tipo == 'servicio' else None
+            lineas.append((tipo, item.itemId, producto_id, servicio_id, nombre, item.cantidad,
+                           precio, descuento, impuesto, base, money(base + impuesto)))
 
         total = money(subtotal + impuesto_total)
         numero = next_number(conn, 'ventas', 'VT')
@@ -192,9 +199,9 @@ def _registrar_venta(payload: VentaCreate, current_user: dict[str, Any]) -> dict
         for linea in lineas:
             conn.execute(
                 '''
-                INSERT INTO detalle_ventas (venta_id, item_tipo, item_id, nombre, cantidad, precio_unitario,
-                                            descuento, impuesto, subtotal, total)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO detalle_ventas (venta_id, item_tipo, item_id, producto_id, servicio_id, nombre,
+                                            cantidad, precio_unitario, descuento, impuesto, subtotal, total)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ''',
                 (venta_id, *linea),
             )

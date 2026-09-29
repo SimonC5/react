@@ -139,14 +139,17 @@ escribe una sola vez y `backend/core.py` lo traduce.
 
 ### Diagrama de relaciones
 
-Las 14 tablas son InnoDB y llevan sus claves foráneas con nombre
+Las 15 tablas son InnoDB y llevan sus claves foráneas con nombre
 (`fk_ventas_cliente`, `fk_detalle_ventas_venta`, …), así que el **Diseñador**
-de phpMyAdmin dibuja las 12 relaciones solo: entra a la base `simonsc` y abre
+de phpMyAdmin dibuja las 19 relaciones solo: entra a la base `simonsc` y abre
 la pestaña *Diseñador*.
 
-La única relación que no aparece es `detalle_ventas.item_id`, porque apunta a
-`productos` o a `servicios` según el valor de `item_tipo` y MySQL no admite una
-clave foránea con dos destinos posibles.
+El catálogo también queda enlazado: cada línea de `detalle_ventas` y de
+`detalle_facturas` guarda `producto_id` o `servicio_id` según lo que se haya
+vendido, y esas son las claves foráneas que unen `productos` y `servicios` con
+el resto del diagrama. Las columnas `item_tipo` e `item_id`, que siguen ahí
+para no romper nada, no se pueden dibujar: una sola columna que apunta a dos
+tablas distintas no es una clave foránea válida en MySQL.
 
 Para que además salgan **colocadas** y no amontonadas, ejecuta una vez
 `backend/designer_layout.sql` desde la pestaña SQL de phpMyAdmin. Deja las

@@ -83,9 +83,15 @@ MySQL (`Decimal` a número, `DATETIME` a texto) para que la API responda igual
 con cualquiera de los dos. La única consulta escrita por separado para cada
 motor es la agrupación por día, semana y mes de los Dashboards.
 
-Tablas: `roles`, `usuarios`, `productos`, `servicios`, `ventas`,
-`detalle_ventas`, `facturas`, `detalle_facturas`, `pqr`, `conversaciones`,
-`mensajes` y `recuperaciones`.
+Tablas: `roles`, `permisos`, `role_permisos`, `usuarios`, `productos`,
+`servicios`, `ventas`, `detalle_ventas`, `facturas`, `detalle_facturas`,
+`pagos`, `pqr`, `conversaciones`, `mensajes` y `recuperaciones`.
+
+Cada línea de `detalle_ventas` y de `detalle_facturas` guarda en `producto_id`
+o en `servicio_id` el artículo del catálogo que se vendió (una u otra, nunca
+las dos), y ahí es donde `productos` y `servicios` se enlazan con el resto del
+esquema. El par `item_tipo` + `item_id` sigue existiendo por compatibilidad,
+pero no es una clave foránea: una misma columna no puede apuntar a dos tablas.
 
 ## Configuración
 

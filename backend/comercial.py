@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     venta_id INTEGER NOT NULL,
     item_tipo TEXT NOT NULL,
     item_id INTEGER,
+    -- Una línea es de un producto o de un servicio, nunca de los dos: la que no
+    -- corresponde queda en NULL. Son las que enlazan la venta con el catálogo.
+    producto_id INTEGER,
+    servicio_id INTEGER,
     nombre TEXT NOT NULL,
     cantidad REAL NOT NULL DEFAULT 1,
     precio_unitario REAL NOT NULL DEFAULT 0,
@@ -50,7 +54,9 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     impuesto REAL NOT NULL DEFAULT 0,
     subtotal REAL NOT NULL DEFAULT 0,
     total REAL NOT NULL DEFAULT 0,
-    FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE
+    FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE SET NULL,
+    FOREIGN KEY (servicio_id) REFERENCES servicios(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS facturas (
@@ -72,6 +78,8 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     factura_id INTEGER NOT NULL,
     item_tipo TEXT NOT NULL,
+    producto_id INTEGER,
+    servicio_id INTEGER,
     nombre TEXT NOT NULL,
     cantidad REAL NOT NULL DEFAULT 1,
     precio_unitario REAL NOT NULL DEFAULT 0,
@@ -79,7 +87,9 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
     impuesto REAL NOT NULL DEFAULT 0,
     subtotal REAL NOT NULL DEFAULT 0,
     total REAL NOT NULL DEFAULT 0,
-    FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE CASCADE
+    FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE CASCADE,
+    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE SET NULL,
+    FOREIGN KEY (servicio_id) REFERENCES servicios(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS pagos (
@@ -300,8 +310,84 @@ def init_comercial_db(conn, crear_tablas: bool = True) -> None:
     if crear_tablas:
         _rehacer_pagos_si_es_del_dia_anterior(conn)
         conn.executescript(COMERCIAL_SCHEMA)
+    # Va también en MySQL: allí las tablas ya existen y ``CREATE TABLE IF NOT
+    # EXISTS`` no les agrega nada.
+    _enlazar_detalle_con_el_catalogo(conn)
     _seed_demo(conn)
     conn.commit()
+
+
+def _columnas(conn, tabla: str) -> set[str]:
+    """Nombres de las columnas de una tabla, o vacío si no existe."""
+    try:
+        cursor = conn.execute(f'SELECT * FROM {tabla} LIMIT 0')
+    except Exception:
+        return set()
+    columnas = {descripcion[0] for descripcion in cursor.description or ()}
+    # El conector de MySQL se cae si queda una consulta a medio leer.
+    cursor.fetchall()
+    return columnas
+
+
+# Cada línea del detalle apunta al catálogo por estas dos columnas. Una línea
+# llena la que le toca y deja la otra en NULL.
+ENLACES_AL_CATALOGO = (('producto_id', 'productos'), ('servicio_id', 'servicios'))
+
+DETALLES = ('detalle_ventas', 'detalle_facturas')
+
+
+def _enlazar_detalle_con_el_catalogo(conn) -> None:
+    """Agrega ``producto_id`` y ``servicio_id`` al detalle si no los tiene.
+
+    Antes, el detalle decía qué se vendió con ``item_tipo`` + ``item_id``, que
+    apuntan a dos tablas distintas según el tipo. Eso no puede ser una clave
+    foránea, y por eso ``productos`` y ``servicios`` salían sueltos en el
+    Diseñador de phpMyAdmin: la relación existía en el código pero no en la
+    base de datos. Con una columna por tabla sí es una relación de verdad.
+
+    En una base que ya tiene datos, las columnas se agregan y se rellenan a
+    partir de lo que ya estaba guardado, sin borrar nada.
+    """
+    for tabla in DETALLES:
+        columnas = _columnas(conn, tabla)
+        if not columnas:
+            continue
+        for columna, catalogo in ENLACES_AL_CATALOGO:
+            if columna in columnas:
+                continue
+            # INTEGER y nulable por defecto: lo entienden igual SQLite y MySQL.
+            conn.execute(f'ALTER TABLE {tabla} ADD COLUMN {columna} INTEGER')
+            try:
+                conn.execute(
+                    f'ALTER TABLE {tabla} ADD CONSTRAINT fk_{tabla}_{columna} '
+                    f'FOREIGN KEY ({columna}) REFERENCES {catalogo} (id) ON DELETE SET NULL'
+                )
+            except Exception:
+                # SQLite no sabe agregar una restricción a una tabla que ya
+                # existe. No importa: la base nueva sí la trae, y es MySQL
+                # quien tiene que dibujarla en el Diseñador.
+                pass
+            _rellenar_enlace(conn, tabla, columna, catalogo)
+    conn.commit()
+
+
+def _rellenar_enlace(conn, tabla: str, columna: str, catalogo: str) -> None:
+    """Deduce a qué artículo apuntaba cada línea que ya estaba guardada."""
+    tipo = 'producto' if columna == 'producto_id' else 'servicio'
+    if 'item_id' in _columnas(conn, tabla):
+        # En las ventas el id exacto ya estaba guardado.
+        conn.execute(
+            f'UPDATE {tabla} SET {columna} = item_id '
+            f"WHERE item_tipo = '{tipo}' AND item_id IN (SELECT id FROM {catalogo})"
+        )
+        return
+    # En las facturas no, así que se busca por el nombre que quedó copiado. El
+    # que no aparezca se queda en NULL, que es la verdad: ya no está.
+    conn.execute(
+        f'UPDATE {tabla} SET {columna} = '
+        f'(SELECT MIN(c.id) FROM {catalogo} c WHERE c.name = {tabla}.nombre) '
+        f"WHERE item_tipo = '{tipo}'"
+    )
 
 
 def _rehacer_pagos_si_es_del_dia_anterior(conn) -> None:
@@ -313,11 +399,7 @@ def _rehacer_pagos_si_es_del_dia_anterior(conn) -> None:
     EXISTS`` no corrige una tabla que ya existe, así que la vieja se rehace:
     solo pudo tener cobros de prueba de ese día.
     """
-    try:
-        cursor = conn.execute('SELECT * FROM pagos LIMIT 0')
-    except Exception:
-        return  # Todavía no existe: la crea el esquema de abajo.
-    columnas = {descripcion[0] for descripcion in cursor.description or ()}
+    columnas = _columnas(conn, 'pagos')
     if 'entidad' not in columnas and 'pasarela' in columnas:
         conn.execute('DROP TABLE pagos')
         conn.commit()
@@ -367,7 +449,10 @@ def _seed_demo(conn: sqlite3.Connection) -> None:
             subtotal += base
             descuento_total += descuento
             impuesto_total += impuesto
-            detalle.append((tipo, item['id'], item['name'], cantidad, precio, descuento, impuesto, base, money(base + impuesto)))
+            producto_id = item['id'] if tipo == 'producto' else None
+            servicio_id = item['id'] if tipo == 'servicio' else None
+            detalle.append((tipo, item['id'], producto_id, servicio_id, item['name'], cantidad,
+                            precio, descuento, impuesto, base, money(base + impuesto)))
 
         total = money(subtotal + impuesto_total)
         numero = next_number(conn, 'ventas', 'VT')
@@ -386,9 +471,9 @@ def _seed_demo(conn: sqlite3.Connection) -> None:
         for linea in detalle:
             conn.execute(
                 '''
-                INSERT INTO detalle_ventas (venta_id, item_tipo, item_id, nombre, cantidad, precio_unitario,
-                                            descuento, impuesto, subtotal, total)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO detalle_ventas (venta_id, item_tipo, item_id, producto_id, servicio_id, nombre,
+                                            cantidad, precio_unitario, descuento, impuesto, subtotal, total)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ''',
                 (venta_id, *linea),
             )
@@ -405,14 +490,16 @@ def _seed_demo(conn: sqlite3.Connection) -> None:
                  money(descuento_total), money(impuesto_total), total, 'Emitida', fecha.isoformat(sep=' ')),
             )
             factura_id = factura_cursor.lastrowid
-            for tipo, _item_id, nombre, cantidad, precio, descuento, impuesto, base, linea_total in detalle:
+            for (tipo, _item_id, producto_id, servicio_id, nombre, cantidad,
+                 precio, descuento, impuesto, base, linea_total) in detalle:
                 conn.execute(
                     '''
-                    INSERT INTO detalle_facturas (factura_id, item_tipo, nombre, cantidad, precio_unitario,
-                                                  descuento, impuesto, subtotal, total)
-                    VALUES (?,?,?,?,?,?,?,?,?)
+                    INSERT INTO detalle_facturas (factura_id, item_tipo, producto_id, servicio_id, nombre,
+                                                  cantidad, precio_unitario, descuento, impuesto, subtotal, total)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ''',
-                    (factura_id, tipo, nombre, cantidad, precio, descuento, impuesto, base, linea_total),
+                    (factura_id, tipo, producto_id, servicio_id, nombre, cantidad, precio,
+                     descuento, impuesto, base, linea_total),
                 )
 
     demo_pqr = [

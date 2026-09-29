@@ -90,12 +90,15 @@ def emitir_factura_de_venta(venta_id: int) -> dict[str, Any]:
         for linea in lineas:
             conn.execute(
                 '''
-                INSERT INTO detalle_facturas (factura_id, item_tipo, nombre, cantidad, precio_unitario,
-                                              descuento, impuesto, subtotal, total)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                INSERT INTO detalle_facturas (factura_id, item_tipo, producto_id, servicio_id, nombre,
+                                              cantidad, precio_unitario, descuento, impuesto, subtotal, total)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 ''',
-                (factura_id, linea['item_tipo'], linea['nombre'], linea['cantidad'], linea['precio_unitario'],
-                 linea['descuento'], linea['impuesto'], linea['subtotal'], linea['total']),
+                # La factura copia de la venta a qué artículo apuntaba cada
+                # línea, para que también quede enlazada con el catálogo.
+                (factura_id, linea['item_tipo'], linea['producto_id'], linea['servicio_id'], linea['nombre'],
+                 linea['cantidad'], linea['precio_unitario'], linea['descuento'], linea['impuesto'],
+                 linea['subtotal'], linea['total']),
             )
         conn.commit()
 

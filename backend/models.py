@@ -58,21 +58,29 @@ class User(Base):
 
 
 class Product(Base):
+    """Una gafa del catálogo. Se vende en líneas de venta y de factura."""
+
     __tablename__ = 'productos'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False, default='')
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    lineas_de_venta: Mapped[list['DetalleVenta']] = relationship('DetalleVenta', back_populates='producto')
+    lineas_de_factura: Mapped[list['DetalleFactura']] = relationship('DetalleFactura', back_populates='producto')
 
 
 class Service(Base):
+    """Un servicio del catálogo. Se vende igual que un producto."""
+
     __tablename__ = 'servicios'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False, default='')
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    lineas_de_venta: Mapped[list['DetalleVenta']] = relationship('DetalleVenta', back_populates='servicio')
+    lineas_de_factura: Mapped[list['DetalleFactura']] = relationship('DetalleFactura', back_populates='servicio')
 
 
 # --- Entidades comerciales y de IA del quinto avance -------------------------
@@ -112,10 +120,14 @@ class DetalleVenta(Base):
     __tablename__ = 'detalle_ventas'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     venta_id: Mapped[int] = mapped_column(Integer, ForeignKey('ventas.id', ondelete='CASCADE'), nullable=False)
-    # "producto" o "servicio": la línea apunta a una u otra tabla del catálogo,
-    # así que item_id no puede ser una clave foránea.
+    # "producto" o "servicio": dice de dónde salió la línea de una forma cómoda
+    # de consultar, pero apunta a dos tablas según el valor, así que item_id no
+    # puede ser clave foránea. Las de verdad son las dos de abajo: la línea
+    # llena la que le toca y deja la otra en NULL.
     item_tipo: Mapped[str] = mapped_column(String(20), nullable=False)
     item_id: Mapped[Optional[int]] = mapped_column(Integer)
+    producto_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('productos.id', ondelete='SET NULL'))
+    servicio_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('servicios.id', ondelete='SET NULL'))
     nombre: Mapped[str] = mapped_column(String(160), nullable=False)
     cantidad: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=1)
     precio_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
@@ -124,6 +136,8 @@ class DetalleVenta(Base):
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     venta: Mapped['Venta'] = relationship('Venta', back_populates='detalle')
+    producto: Mapped[Optional['Product']] = relationship('Product', back_populates='lineas_de_venta')
+    servicio: Mapped[Optional['Service']] = relationship('Service', back_populates='lineas_de_venta')
 
 
 class Factura(Base):
@@ -149,6 +163,8 @@ class DetalleFactura(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     factura_id: Mapped[int] = mapped_column(Integer, ForeignKey('facturas.id', ondelete='CASCADE'), nullable=False)
     item_tipo: Mapped[str] = mapped_column(String(20), nullable=False)
+    producto_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('productos.id', ondelete='SET NULL'))
+    servicio_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('servicios.id', ondelete='SET NULL'))
     nombre: Mapped[str] = mapped_column(String(160), nullable=False)
     cantidad: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=1)
     precio_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
@@ -157,6 +173,8 @@ class DetalleFactura(Base):
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     factura: Mapped['Factura'] = relationship('Factura', back_populates='detalle')
+    producto: Mapped[Optional['Product']] = relationship('Product', back_populates='lineas_de_factura')
+    servicio: Mapped[Optional['Service']] = relationship('Service', back_populates='lineas_de_factura')
 
 
 class Pago(Base):

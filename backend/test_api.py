@@ -114,6 +114,44 @@ def test_factura_se_genera_una_sola_vez_y_se_descarga(client, admin, venta):
     assert pdf.status_code == 200 and pdf.content[:4] == b'%PDF'
 
 
+def test_la_venta_y_su_factura_quedan_enlazadas_con_el_catalogo(client, admin):
+    """Sin producto_id/servicio_id, el catálogo queda suelto en el diagrama."""
+    producto = client.get('/api/products', headers=admin).json()['products'][0]
+    servicio = client.get('/api/services', headers=admin).json()['services'][0]
+    creada = client.post('/api/ventas', headers=admin, json={
+        'cliente': 'Cliente del diagrama',
+        'clienteDocumento': '2222222222',
+        'items': [
+            {'tipo': 'producto', 'itemId': producto['id'], 'cantidad': 1},
+            {'tipo': 'servicio', 'itemId': servicio['id'], 'cantidad': 1},
+        ],
+    })
+    assert creada.status_code == 200, creada.text
+    venta_id = creada.json()['venta']['id']
+    factura = client.post('/api/facturas', headers=admin, json={'ventaId': venta_id})
+    assert factura.status_code == 200, factura.text
+    factura_id = factura.json()['factura']['id']
+
+    conn = core.get_db_connection()
+    try:
+        lineas = conn.execute(
+            'SELECT item_tipo, producto_id, servicio_id FROM detalle_ventas WHERE venta_id = ? ORDER BY id',
+            (venta_id,),
+        ).fetchall()
+        copiadas = conn.execute(
+            'SELECT item_tipo, producto_id, servicio_id FROM detalle_facturas WHERE factura_id = ? ORDER BY id',
+            (factura_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    for detalle in (lineas, copiadas):
+        assert len(detalle) == 2
+        del_producto, del_servicio = detalle
+        assert del_producto['producto_id'] == producto['id'] and del_producto['servicio_id'] is None
+        assert del_servicio['servicio_id'] == servicio['id'] and del_servicio['producto_id'] is None
+
+
 @pytest.mark.parametrize('agrupacion', ['dia', 'semana', 'mes'])
 def test_dashboard_entrega_series_por_periodo(client, admin, agrupacion, venta):
     datos = client.get('/api/dashboard/ventas', headers=admin, params={'agrupacion': agrupacion}).json()

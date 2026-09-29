@@ -30,10 +30,8 @@ INSERT INTO phpmyadmin.pma__table_coords (db_name, table_name, pdf_page_number, 
   ('simonsc', 'roles',            @pagina,   40,   40),
   ('simonsc', 'permisos',         @pagina,   40,  230),
   ('simonsc', 'role_permisos',    @pagina,   40,  420),
-  -- Columna 2: usuarios y el catálogo, que no depende de nadie.
+  -- Columna 2: usuarios.
   ('simonsc', 'usuarios',         @pagina,  340,   40),
-  ('simonsc', 'productos',        @pagina,  340,  560),
-  ('simonsc', 'servicios',        @pagina,  340,  760),
   -- Columna 3: todo lo que apunta a usuarios.
   ('simonsc', 'ventas',           @pagina,  700,   40),
   ('simonsc', 'pqr',              @pagina,  700,  520),
@@ -45,4 +43,8 @@ INSERT INTO phpmyadmin.pma__table_coords (db_name, table_name, pdf_page_number, 
   ('simonsc', 'mensajes',         @pagina, 1060,  880),
   -- Columna 5: el detalle de la factura y los pagos, que apuntan a ella.
   ('simonsc', 'detalle_facturas', @pagina, 1420,  420),
-  ('simonsc', 'pagos',            @pagina, 1420,  800);
+  ('simonsc', 'pagos',            @pagina, 1420,  800),
+  -- Abajo el catálogo: no depende de nadie, pero el detalle de la venta y el
+  -- de la factura apuntan a él, así que va justo debajo de esas dos tablas.
+  ('simonsc', 'productos',        @pagina, 1060, 1180),
+  ('simonsc', 'servicios',        @pagina, 1420, 1180);

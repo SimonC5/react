@@ -92,13 +92,17 @@ CREATE TABLE IF NOT EXISTS ventas (
   CONSTRAINT fk_ventas_vendedor FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- item_id apunta a productos o a servicios según item_tipo, así que no puede
--- llevar clave foránea: es la única relación que el Diseñador no dibuja.
+-- item_tipo e item_id dicen qué se vendió de una forma cómoda de consultar,
+-- pero apuntan a dos tablas distintas, así que no pueden ser clave foránea.
+-- Las que sí lo son, y las que el Diseñador dibuja, son producto_id y
+-- servicio_id: una línea llena una y deja la otra en NULL.
 CREATE TABLE IF NOT EXISTS detalle_ventas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   venta_id INT NOT NULL,
   item_tipo VARCHAR(20) NOT NULL,
   item_id INT NULL,
+  producto_id INT NULL,
+  servicio_id INT NULL,
   nombre VARCHAR(160) NOT NULL,
   cantidad DECIMAL(12,2) NOT NULL DEFAULT 1,
   precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -106,7 +110,9 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
   impuesto DECIMAL(12,2) NOT NULL DEFAULT 0,
   subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
   total DECIMAL(12,2) NOT NULL DEFAULT 0,
-  CONSTRAINT fk_detalle_ventas_venta FOREIGN KEY (venta_id) REFERENCES ventas (id) ON DELETE CASCADE
+  CONSTRAINT fk_detalle_ventas_venta FOREIGN KEY (venta_id) REFERENCES ventas (id) ON DELETE CASCADE,
+  CONSTRAINT fk_detalle_ventas_producto FOREIGN KEY (producto_id) REFERENCES productos (id) ON DELETE SET NULL,
+  CONSTRAINT fk_detalle_ventas_servicio FOREIGN KEY (servicio_id) REFERENCES servicios (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS facturas (
@@ -129,6 +135,8 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   factura_id INT NOT NULL,
   item_tipo VARCHAR(20) NOT NULL,
+  producto_id INT NULL,
+  servicio_id INT NULL,
   nombre VARCHAR(160) NOT NULL,
   cantidad DECIMAL(12,2) NOT NULL DEFAULT 1,
   precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -136,7 +144,9 @@ CREATE TABLE IF NOT EXISTS detalle_facturas (
   impuesto DECIMAL(12,2) NOT NULL DEFAULT 0,
   subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
   total DECIMAL(12,2) NOT NULL DEFAULT 0,
-  CONSTRAINT fk_detalle_facturas_factura FOREIGN KEY (factura_id) REFERENCES facturas (id) ON DELETE CASCADE
+  CONSTRAINT fk_detalle_facturas_factura FOREIGN KEY (factura_id) REFERENCES facturas (id) ON DELETE CASCADE,
+  CONSTRAINT fk_detalle_facturas_producto FOREIGN KEY (producto_id) REFERENCES productos (id) ON DELETE SET NULL,
+  CONSTRAINT fk_detalle_facturas_servicio FOREIGN KEY (servicio_id) REFERENCES servicios (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
